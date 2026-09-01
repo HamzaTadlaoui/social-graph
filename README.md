@@ -28,7 +28,7 @@ before upgrading anything.
 | Package   | What lives there                                                        |
 |-----------|-------------------------------------------------------------------------|
 | `model/`  | `FuzzyDate`, `RelationshipType` — plain Kotlin, no Android               |
-| `graph/`  | ego networks, family trees, shortest paths — also plain Kotlin           |
+| `graph/`  | ego networks, family trees, kinship, shortest paths — also plain Kotlin  |
 | `data/`   | Room entities, DAOs, the repository, the photo store                    |
 | `ui/`     | Compose screens: people, dossier, graph, family, files, settings         |
 | `ui/theme/` | the palette, the type scale and the shapes — the whole look           |
@@ -50,6 +50,31 @@ then a flat `WHERE fromId = ?`, and removing a tie is one delete by `pairId`.
 `FuzzyDate` holds a year, optionally a month, optionally a day, and a flag for
 "about". It is stored as one string: `1974-03-12`, `1974-03`, `1974`, `c.1974`,
 or empty for unknown. The UI never asks for precision the user does not have.
+
+### Ties nobody typed in
+
+Recording that Firdaws is Hamza's parent and that Abi is Firdaws' parent says,
+without anyone saying it twice, that Abi is Hamza's grandparent. `impliedKin`
+in `graph/` works those out — siblings, grandparents, aunts and uncles, cousins,
+nieces and nephews, in-laws — and a person's page lists them under **Follows
+from what you have recorded**, saying which person each one runs through.
+
+They are derived on the way to the screen rather than stored, so they cannot go
+stale, and anything already recorded directly is never offered back as an
+inference. The reasoning is deliberately narrow: only descent, siblinghood and
+partnership carry weight, a friend of a friend is not a relation, and a parent's
+partner is called exactly that rather than a step-parent, which is a thing for
+people to call themselves rather than for a database to decide. Half-siblings
+are only named as such when both parents of both children are known; with one
+parent recorded there is no way to tell, so the gentler answer wins.
+
+### Laying out a family
+
+Two rules, in order: a couple is one block, so partners are never split up by
+someone else's family; and a set of children hangs under the middle of its
+parents, both of them when both are known. The tree then frames itself to the
+screen, because a family is drawn to be seen whole rather than dropped in at
+full size with the grandparents off the right-hand edge.
 
 ## Files, and who is in them
 

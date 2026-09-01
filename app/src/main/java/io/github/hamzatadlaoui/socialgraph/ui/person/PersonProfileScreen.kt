@@ -58,6 +58,7 @@ fun PersonProfileScreen(
     val person by viewModel.person.collectAsStateWithLifecycle()
     val ties by viewModel.ties.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
+    val implied by viewModel.implied.collectAsStateWithLifecycle()
     val months = stringArrayResource(R.array.months).toList()
 
     Scaffold(
@@ -108,6 +109,43 @@ fun PersonProfileScreen(
                         onOpen = { onOpenPerson(tie.other.id) },
                         onUnlink = { viewModel.unlink(tie) },
                     )
+                }
+            }
+
+            // Ties the app worked out rather than being told. Kept apart from
+            // the recorded ones and worded as a consequence, so the page never
+            // pretends to know something nobody entered.
+            if (implied.isNotEmpty()) {
+                item {
+                    SectionTitle(
+                        title = stringResource(R.string.implied_ties),
+                        count = implied.size,
+                    )
+                }
+                items(implied, key = { it.other.id }) { tie ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenPerson(tie.other.id) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Avatar(tie.other.displayName, tie.other.photo, photos, size = 40.dp)
+                        Column {
+                            Text(tie.other.fullName, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = listOfNotNull(
+                                    stringResource(tie.kinship.label()),
+                                    tie.throughName?.let {
+                                        stringResource(R.string.implied_through, it)
+                                    },
+                                ).joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
 

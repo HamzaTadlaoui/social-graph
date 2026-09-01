@@ -61,13 +61,7 @@ fun familyTree(graph: PeopleGraph, rootId: String, up: Int = 2, down: Int = 2): 
         }
     }
 
-    val rows = generation.entries.groupBy({ it.value }, { it.key })
-        .mapValues { (_, ids) -> partnersTogether(ids, graph) }
-
-    val places = rows.flatMap { (row, ids) ->
-        val middle = (ids.size - 1) / 2f
-        ids.mapIndexed { index, id -> TreePlace(id, row, index - middle) }
-    }
+    val places = place(generation, graph, rootId)
 
     val inTree = generation.keys
     val couples = mutableSetOf<Pair<String, String>>()
@@ -88,6 +82,139 @@ fun familyTree(graph: PeopleGraph, rootId: String, up: Int = 2, down: Int = 2): 
 
     return FamilyTree(rootId, places, couples.toList(), descents.toList())
 }
+
+/**
+ * Turns "who is in which generation" into where each of them goes.
+ *
+ * Two rules, in this order. A couple is one block, so partners are never split
+ * up by someone else's family. And a set of children hangs under the middle of
+ * its parents - both of them, when both are known - so that reading down the
+ * page follows descent rather than the order people happened to be typed in.
+ *
+ * Positions are in columns of one person each. The tree is then slid sideways
+ * so the person it was built around sits at zero.
+ */
+private fun place(
+    generation: Map<String, Int>,
+    graph: PeopleGraph,
+    rootId: String,
+): List<TreePlace> {
+    val inTree = generation.keys
+
+    val parentsOf = inTree.associateWith { id ->
+        graph.neighbours(id)
+            .filter { it.type == RelationshipType.CHILD_OF && it.toId in inTree }
+            .map { it.toId }
+            .distinct()
+            .sorted()
+    }
+    val childrenOf = inTree.associateWith { id ->
+        graph.neighbours(id)
+            .filter { it.type == RelationshipType.PARENT_OF && it.toId in inTree }
+            .map { it.toId }
+            .distinct()
+    }
+
+    val rows = generation.entries
+        .groupBy({ it.value }, { it.key })
+        .mapValues { (_, ids) -> partnersTogether(ids, graph) }
+    val orderedRows = rows.keys.sorted()
+
+    val column = mutableMapOf<String, Float>()
+
+    // Downwards first: each row is laid out under the one above it.
+    for (row in orderedRows) {
+        val units = unitsIn(rows.getValue(row), graph)
+
+        // Where each block would like to sit: the middle of its parents.
+        val wanted = units.map { unit ->
+            val above = unit.flatMap { parentsOf[it].orEmpty() }.distinct().mapNotNull { column[it] }
+            if (above.isEmpty()) null else above.average().toFloat()
+        }
+
+        // Blocks whose parents are known go where their parents are, in that
+        // order; anyone left over is added on the end rather than cutting in.
+        val order = units.indices.sortedWith(
+            compareBy({ wanted[it] == null }, { wanted[it] ?: 0f }),
+        )
+
+        var cursor: Float? = null
+        for (index in order) {
+            val unit = units[index]
+            val width = unit.size.toFloat()
+            val preferred = wanted[index]?.minus((width - 1f) / 2f)
+            val start = when {
+                cursor == null -> preferred ?: 0f
+                preferred == null -> cursor
+                else -> maxOf(preferred, cursor)
+            }
+            unit.forEachIndexed { offset, id -> column[id] = start + offset }
+            cursor = start + width - 1f + SPACING
+        }
+    }
+
+    // Then upwards, so a couple ends up over the middle of their children
+    // rather than wherever their own generation happened to start.
+    for (row in orderedRows.reversed()) {
+        val units = unitsIn(rows.getValue(row), graph)
+        for (unit in units) {
+            val below = unit.flatMap { childrenOf[it].orEmpty() }.distinct().mapNotNull { column[it] }
+            if (below.isEmpty()) continue
+
+            val middle = below.average().toFloat()
+            val start = middle - (unit.size - 1f) / 2f
+            unit.forEachIndexed { offset, id -> column[id] = start + offset }
+        }
+        spread(rows.getValue(row), column)
+    }
+
+    // The person the tree was built around sits at zero, whatever happened above.
+    val shift = column[rootId] ?: 0f
+    return generation.map { (id, row) -> TreePlace(id, row, (column[id] ?: 0f) - shift) }
+}
+
+/** Couples are one block; everyone else is a block of one. */
+private fun unitsIn(ids: List<String>, graph: PeopleGraph): List<List<String>> {
+    val remaining = ids.toMutableList()
+    val units = mutableListOf<List<String>>()
+
+    while (remaining.isNotEmpty()) {
+        val personId = remaining.removeAt(0)
+        val partner = graph.neighbours(personId)
+            .firstOrNull {
+                (it.type == RelationshipType.PARTNER_OF || it.type == RelationshipType.EX_PARTNER_OF) &&
+                    it.toId in remaining
+            }
+            ?.toId
+
+        if (partner == null) {
+            units += listOf(personId)
+        } else {
+            remaining.remove(partner)
+            units += listOf(personId, partner)
+        }
+    }
+    return units
+}
+
+/**
+ * Pushes a row apart until nobody is sitting on anybody. Centring a couple over
+ * their children can walk them into the family next door; this walks them back
+ * out, leftmost first, without changing anyone's order.
+ */
+private fun spread(ids: List<String>, column: MutableMap<String, Float>) {
+    val ordered = ids.sortedBy { column[it] ?: 0f }
+    var last: Float? = null
+    for (id in ordered) {
+        val here = column[id] ?: continue
+        val floor = last?.plus(1f)
+        if (floor != null && here < floor) column[id] = floor
+        last = column[id]
+    }
+}
+
+/** One clear column between one family and the next. */
+private const val SPACING = 1.6f
 
 /** Keeps couples next to each other, so the line between them is a short one. */
 private fun partnersTogether(ids: List<String>, graph: PeopleGraph): List<String> {

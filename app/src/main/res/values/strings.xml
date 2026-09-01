@@ -137,6 +137,24 @@
     <string name="document_failed">Could not read that file.</string>
     <string name="export_size_hint">Documents on this phone: %1$s.</string>
 
+    <!-- Ties the app works out rather than being told. -->
+    <string name="implied_ties">Follows from what you have recorded</string>
+    <string name="implied_through">through %1$s</string>
+    <string name="kin_sibling">Sibling</string>
+    <string name="kin_half_sibling">Half-sibling</string>
+    <string name="kin_grandparent">Grandparent</string>
+    <string name="kin_grandchild">Grandchild</string>
+    <string name="kin_great_grandparent">Great-grandparent</string>
+    <string name="kin_great_grandchild">Great-grandchild</string>
+    <string name="kin_aunt_or_uncle">Aunt or uncle</string>
+    <string name="kin_niece_or_nephew">Niece or nephew</string>
+    <string name="kin_cousin">Cousin</string>
+    <string name="kin_parent_in_law">Parent-in-law</string>
+    <string name="kin_child_in_law">Child-in-law</string>
+    <string name="kin_sibling_in_law">Sibling-in-law</string>
+    <string name="kin_parents_partner">Parent\'s partner</string>
+    <string name="kin_partners_child">Partner\'s child</string>
+
     <plurals name="tagged_count">
         <item quantity="one">%1$d person tagged</item>
         <item quantity="other">%1$d people tagged</item>

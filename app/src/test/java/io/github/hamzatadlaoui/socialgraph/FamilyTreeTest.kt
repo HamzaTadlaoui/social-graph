@@ -98,4 +98,44 @@ class FamilyTreeTest {
         assertTrue(tree.descents.contains("david" to "me"))
         assertTrue(tree.descents.none { it.first == "me" })
     }
+
+    @Test
+    fun `a couple stands together, with their children under the middle of both`() {
+        val tree = familyTree(graph, "david", up = 1, down = 1)
+        val column = tree.places.associate { it.id to it.column }
+
+        val robert = column.getValue("robert")
+        val anne = column.getValue("anne")
+        val david = column.getValue("david")
+        val claire = column.getValue("claire")
+
+        // Partners are side by side, one column apart.
+        assertEquals(1f, kotlin.math.abs(robert - anne), 0.001f)
+
+        // And the pair of them sit over the middle of their two children, so
+        // descent reads straight down the page rather than off to one side.
+        assertEquals((david + claire) / 2f, (robert + anne) / 2f, 0.001f)
+    }
+
+    @Test
+    fun `the person the tree is drawn around sits at zero`() {
+        val tree = familyTree(graph, "david", up = 2, down = 2)
+
+        assertEquals(0f, tree.places.first { it.id == "david" }.column, 0.001f)
+    }
+
+    @Test
+    fun `nobody in a row is placed on top of anybody else`() {
+        val tree = familyTree(graph, "david", up = 2, down = 2)
+
+        for ((_, row) in tree.places.groupBy { it.generation }) {
+            val columns = row.map { it.column }.sorted()
+            for (i in 1 until columns.size) {
+                assertTrue(
+                    "two people share a column in the same generation",
+                    columns[i] - columns[i - 1] >= 0.999f,
+                )
+            }
+        }
+    }
 }

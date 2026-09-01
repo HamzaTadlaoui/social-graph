@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -43,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -94,6 +98,10 @@ fun FamilyScreen(
     var scale by remember { mutableStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var selected by remember { mutableStateOf<String?>(null) }
+    // Until the user moves it themselves, the tree frames itself.
+    var moved by remember { mutableStateOf(false) }
+    var viewSize by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
 
     val plate = MaterialTheme.colorScheme.surfaceVariant
     val rootPlate = MaterialTheme.colorScheme.primaryContainer
@@ -133,12 +141,43 @@ fun FamilyScreen(
                 return@Column
             }
 
+            // A family is drawn to be seen whole: work out what it takes to fit
+            // and start there, rather than dropping the reader at one hundred
+            // per cent with the grandparents somewhere off the right-hand edge.
+            LaunchedEffect(state.nodes, viewSize, viewModel.generations) {
+                if (moved || viewSize.width == 0 || state.nodes.isEmpty()) return@LaunchedEffect
+                val metrics = with(density) { treeMetrics() }
+                val columns = state.nodes.map { it.place.column }
+                val generations = state.nodes.map { it.place.generation }
+
+                val spread = (columns.max() - columns.min()) * metrics.columnWidth + metrics.boxWidth
+                val depth =
+                    (generations.max() - generations.min()) * metrics.rowHeight + metrics.boxHeight
+                val margin = with(density) { 48.dp.toPx() }
+
+                scale = minOf(
+                    (viewSize.width - margin) / spread,
+                    (viewSize.height - margin) / depth,
+                    1f,
+                ).coerceIn(0.35f, 1f)
+
+                // Slide the middle of the tree to the middle of the view.
+                val midColumn = (columns.max() + columns.min()) / 2f
+                val midGeneration = (generations.max() + generations.min()) / 2f
+                pan = Offset(
+                    x = -midColumn * metrics.columnWidth * scale,
+                    y = -midGeneration * metrics.rowHeight * scale,
+                )
+            }
+
             Box(modifier = Modifier.fillMaxSize()) {
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
+                        .onSizeChanged { viewSize = it }
                         .pointerInput(Unit) {
                             detectTransformGestures { _, panChange, zoom, _ ->
+                                moved = true
                                 scale = (scale * zoom).coerceIn(0.4f, 3f)
                                 pan += panChange
                             }
@@ -216,8 +255,7 @@ fun FamilyScreen(
                                     onClick = {
                                         viewModel.rootOn(person.id)
                                         selected = null
-                                        scale = 1f
-                                        pan = Offset.Zero
+                                        moved = false
                                     },
                                 ) {
                                     Text(stringResource(R.string.tree_from_here))
