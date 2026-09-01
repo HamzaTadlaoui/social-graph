@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Three people and the ties between them: one node held apart, which is what
+     the app is for - seeing who sits where. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:pathData="M54,34 L36,68 M54,34 L74,64 M36,68 L74,64"
+        android:strokeColor="#4FC3D9"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M54,34m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0"
+        android:fillColor="#D7E3EB" />
+    <path
+        android:pathData="M36,68m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0"
+        android:fillColor="#4FC3D9" />
+    <path
+        android:pathData="M74,64m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0"
+        android:fillColor="#4FC3D9" />
+</vector>

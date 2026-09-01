@@ -1,0 +1,8 @@
+<resources>
+    <!-- Only the window frame: everything inside is drawn by Compose, which
+         picks its own colours in SocialGraphTheme. The background is set here
+         too so the launch flash is the app's own ground, not a white blink. -->
+    <style name="Theme.SocialGraph" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#EDF1F4</item>
+    </style>
+</resources>

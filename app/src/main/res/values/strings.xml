@@ -1,0 +1,115 @@
+<resources>
+    <string name="app_name">Social Graph</string>
+
+    <string name="tab_people">People</string>
+    <string name="tab_graph">Graph</string>
+    <string name="tab_family">Family</string>
+
+    <string name="search_people">Search people</string>
+    <string name="no_one_yet">Nobody here yet.\n\nAdd the first person with the button below.</string>
+    <string name="no_one_found">Nobody by that name.</string>
+
+    <string name="add_person">Add person</string>
+    <string name="edit_person">Edit person</string>
+    <string name="choose_photo">Choose a photo</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="back">Back</string>
+
+    <string name="field_name">Name</string>
+    <string name="field_last_name">Last name</string>
+    <string name="field_nickname">Nickname</string>
+    <string name="field_pronouns">Pronouns</string>
+    <string name="field_born">Born</string>
+    <string name="field_born_hint">1974, 1974-03, 1974-03-12, or c.1974 if you are unsure</string>
+    <string name="field_notes">Notes</string>
+    <string name="this_is_me">This is me</string>
+    <string name="this_is_me_hint">The graph and the family tree open on you.</string>
+
+    <string name="delete_person_title">Delete %1$s?</string>
+    <string name="delete_person_body">Their relationships go with them. This cannot be undone.</string>
+
+    <string name="unknown">Unknown</string>
+    <string name="born_on">Born %1$s</string>
+    <string name="add_relationship">Add relationship</string>
+    <string name="remove_relationship">Remove relationship</string>
+    <string name="no_relationships_yet">No relationships recorded yet.</string>
+    <string name="relationship_subject">%1$s…</string>
+    <string name="relationship_kind">Relationship</string>
+    <string name="relationship_label">What to call it</string>
+    <string name="which_person">Search or type a new name</string>
+    <string name="create_and_link">Create “%1$s” and link them</string>
+
+    <!-- Headings on a person's page: the far end of each tie. -->
+    <string name="section_parents">Parents</string>
+    <string name="section_children">Children</string>
+    <string name="section_siblings">Siblings</string>
+    <string name="section_partners">Partner</string>
+    <string name="section_former_partners">Former partners</string>
+    <string name="section_friends">Friends</string>
+    <string name="section_colleagues">Colleagues</string>
+    <string name="section_employers">Employers</string>
+    <string name="section_employees">Employees</string>
+    <string name="section_neighbours">Neighbours</string>
+    <string name="section_knows">Knows</string>
+    <string name="section_other">Other</string>
+
+    <!-- Read as "Sophie … is the parent of … someone". -->
+    <string name="tie_parent_of">is the parent of</string>
+    <string name="tie_child_of">is the child of</string>
+    <string name="tie_sibling_of">is the sibling of</string>
+    <string name="tie_partner_of">is the partner of</string>
+    <string name="tie_ex_partner_of">is the former partner of</string>
+    <string name="tie_friend_of">is a friend of</string>
+    <string name="tie_coworker_of">works with</string>
+    <string name="tie_employer_of">employs</string>
+    <string name="tie_employee_of">works for</string>
+    <string name="tie_neighbour_of">is a neighbour of</string>
+    <string name="tie_knows">knows</string>
+    <string name="tie_custom">something else…</string>
+
+    <string-array name="months">
+        <item>January</item>
+        <item>February</item>
+        <item>March</item>
+        <item>April</item>
+        <item>May</item>
+        <item>June</item>
+        <item>July</item>
+        <item>August</item>
+        <item>September</item>
+        <item>October</item>
+        <item>November</item>
+        <item>December</item>
+    </string-array>
+
+    <string name="filter_ties">Filter</string>
+    <string name="filter_all">All ties</string>
+    <string name="filter_family">Family only</string>
+    <string name="filter_social">Friends and neighbours</string>
+    <string name="filter_work">Work</string>
+    <string name="hops">HOPS %1$d</string>
+    <string name="open_profile">Open</string>
+    <string name="centre_here">Centre here</string>
+    <string name="graph_needs_people">Add a few people and the ties between them, and they will show up here.</string>
+    <string name="generations">GEN %1$d</string>
+    <string name="tree_from_here">Tree from here</string>
+    <string name="family_needs_people">Record who someone\'s parents, partner or children are, and the tree draws itself.</string>
+
+    <string name="settings">Settings</string>
+    <string name="export_backup">Export a backup</string>
+    <string name="export_backup_hint">One zip holding everyone, every tie and every photo, saved wherever you choose.</string>
+    <string name="restore_backup">Restore from a backup</string>
+    <string name="restore_backup_hint">Adds what the file holds to what is already here, matching people by id.</string>
+    <string name="backup_written">Backup written: %1$s.</string>
+    <string name="backup_failed">Could not write the backup.</string>
+    <string name="restore_done">Restored %1$s.</string>
+    <string name="restore_failed">That file did not hold a backup this app can read.</string>
+    <string name="privacy_note">Everything stays on this phone. The app has no internet permission, so it could not send your notes anywhere even if it wanted to.</string>
+
+    <plurals name="people_count">
+        <item quantity="one">%1$d person</item>
+        <item quantity="other">%1$d people</item>
+    </plurals>
+</resources>
