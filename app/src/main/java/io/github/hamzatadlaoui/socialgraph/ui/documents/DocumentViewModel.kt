@@ -10,6 +10,8 @@ import io.github.hamzatadlaoui.socialgraph.data.DocumentTagEntity
 import io.github.hamzatadlaoui.socialgraph.data.PeopleRepository
 import io.github.hamzatadlaoui.socialgraph.data.PersonEntity
 import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
+import io.github.hamzatadlaoui.socialgraph.model.Corner
+import io.github.hamzatadlaoui.socialgraph.model.CropBox
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,10 +40,6 @@ class DocumentViewModel(
     private val documentId: String,
 ) : ViewModel() {
 
-    /** The tag the user has just drawn but not yet given a name to. */
-    private val pending = MutableStateFlow<FloatArray?>(null)
-    val pendingRegion: StateFlow<FloatArray?> = pending
-
     val state: StateFlow<DocumentState> = combine(
         repository.document(documentId),
         repository.tagsOn(documentId),
@@ -59,47 +57,124 @@ class DocumentViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DocumentState())
 
-    /** Remembers the rectangle just drawn, so the picker knows where to put the name. */
-    fun regionDrawn(left: Float, top: Float, right: Float, bottom: Float) {
-        pending.value = floatArrayOf(left, top, right, bottom)
+    /**
+     * The box currently being worked on: freshly drawn, or an existing tag
+     * opened for adjustment. Holding it here rather than in the canvas means a
+     * half-adjusted box survives a recomposition, and that "save" is one place.
+     */
+    private val _draft = MutableStateFlow<Draft?>(null)
+    val draft: StateFlow<Draft?> = _draft
+
+    /**
+     * A rectangle on its way to being a tag. [tagId] is null until it has been
+     * given a name; after that, edits go back to the same row rather than
+     * piling up new ones.
+     */
+    data class Draft(
+        val tagId: String? = null,
+        val personId: String? = null,
+        val box: CropBox = CropBox.EMPTY,
+    ) {
+        val valid: Boolean get() = box.usable
     }
 
-    fun cancelRegion() {
-        pending.value = null
+    /** Starts a new box, drawn from nothing. */
+    fun beginRegion(left: Float, top: Float, right: Float, bottom: Float) {
+        _draft.value = Draft(box = CropBox(left, top, right, bottom).tidied())
+    }
+
+    /** Opens an existing tag for adjustment. */
+    fun select(tagged: TaggedPerson) {
+        val tag = tagged.tag
+        _draft.value = Draft(
+            tagId = tag.id,
+            personId = tag.personId,
+            box = CropBox(tag.left, tag.top, tag.right, tag.bottom),
+        )
     }
 
     /**
-     * Asks for a name with no rectangle attached - the tag will be about the
-     * document as a whole. An empty array rather than null, because null is
-     * what "nothing is pending" already means.
+     * Where the box is now, as the finger moves it. The minimum size is not
+     * enforced here - snapping a box back mid-drag fights whoever is dragging
+     * it - only when it is saved.
      */
-    fun tagWhole() {
-        pending.value = FloatArray(0)
+    fun drawTo(left: Float, top: Float, right: Float, bottom: Float) {
+        val current = _draft.value ?: return
+        _draft.value = current.copy(box = CropBox(left, top, right, bottom).tidied())
+    }
+
+    /** Slides the whole box, stopping at the edges of the picture. */
+    fun moveBy(dx: Float, dy: Float) {
+        val current = _draft.value ?: return
+        _draft.value = current.copy(box = current.box.movedBy(dx, dy))
+    }
+
+    /** Drags one corner, leaving the opposite one where it is. */
+    fun dragCorner(corner: Corner, x: Float, y: Float) {
+        val current = _draft.value ?: return
+        _draft.value = current.copy(box = current.box.withCorner(corner, x, y))
+    }
+
+    fun clearDraft() {
+        _draft.value = null
     }
 
     /**
-     * Attaches [personId] to the pending rectangle, or to the document as a
-     * whole when nothing has been drawn - which is the only kind of tag a PDF
-     * or a recording can have.
+     * Writes the adjusted rectangle back. Called when a drag finishes, so an
+     * existing tag follows the finger without anyone having to press save.
      */
-    fun tagPending(personId: String) {
-        val region = pending.value
-        viewModelScope.launch {
-            val tag = if (region == null || region.size < 4) {
-                DocumentTagEntity(documentId = documentId, personId = personId)
-            } else {
-                DocumentTagEntity.region(
-                    documentId = documentId,
-                    personId = personId,
-                    x1 = region[0],
-                    y1 = region[1],
-                    x2 = region[2],
-                    y2 = region[3],
-                ) ?: return@launch
+    fun saveDraft() {
+        val current = _draft.value ?: return
+        val personId = current.personId ?: return
+        if (!current.valid) return
+
+        val tag = DocumentTagEntity.region(
+            documentId = documentId,
+            personId = personId,
+            x1 = current.box.left,
+            y1 = current.box.top,
+            x2 = current.box.right,
+            y2 = current.box.bottom,
+            id = current.tagId ?: DocumentTagEntity.newId(),
+        ) ?: return
+
+        _draft.value = current.copy(tagId = tag.id)
+        viewModelScope.launch { repository.tag(tag) }
+    }
+
+    /**
+     * Puts a name to the box. A box with no size behind it - the "tag someone
+     * in this file" button - becomes a tag about the document as a whole.
+     */
+    fun assign(personId: String) {
+        val current = _draft.value ?: Draft()
+        if (!current.valid) {
+            viewModelScope.launch {
+                repository.tag(
+                    DocumentTagEntity(
+                        id = current.tagId ?: DocumentTagEntity.newId(),
+                        documentId = documentId,
+                        personId = personId,
+                    ),
+                )
             }
-            repository.tag(tag)
-            pending.value = null
+            _draft.value = null
+            return
         }
+        _draft.value = current.copy(personId = personId)
+        saveDraft()
+    }
+
+    /** Asks for a name with no rectangle: the tag will be about the whole document. */
+    fun tagWhole() {
+        _draft.value = Draft()
+    }
+
+    /** Removes whatever the draft points at, drawn or already saved. */
+    fun removeDraft() {
+        val tagId = _draft.value?.tagId
+        _draft.value = null
+        if (tagId != null) viewModelScope.launch { repository.untag(tagId) }
     }
 
     fun untag(tagId: String) {

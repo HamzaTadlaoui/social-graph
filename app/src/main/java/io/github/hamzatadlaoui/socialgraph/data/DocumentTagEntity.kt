@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import io.github.hamzatadlaoui.socialgraph.model.CropBox
 import java.util.UUID
 
 /**
@@ -83,6 +84,6 @@ data class DocumentTagEntity(
         }
 
         /** Two per cent of the picture each way: smaller than that was a slip. */
-        const val MINIMUM = 0.02f
+        const val MINIMUM = CropBox.MINIMUM
     }
 }

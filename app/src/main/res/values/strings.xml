@@ -118,7 +118,10 @@
     <string name="document_title_hint">Title</string>
     <string name="document_notes_hint">Notes</string>
     <string name="document_dated_hint">Dated</string>
-    <string name="drag_to_tag">Drag a box around someone to tag them.</string>
+    <string name="drag_to_tag">Drag a box around someone to tag them. Tap a box to adjust it.</string>
+    <string name="drag_to_adjust">Drag the box to move it, or a corner to resize it.</string>
+    <string name="drag_to_adjust_new">Adjust the box, then say who it is.</string>
+    <string name="done_adjusting">Done</string>
     <string name="tag_someone">Tag someone</string>
     <string name="tag_whole_file">Tag someone in this file</string>
     <string name="who_is_this">Who is this?</string>

@@ -8,10 +8,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,14 +57,18 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,6 +80,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.hamzatadlaoui.socialgraph.R
 import io.github.hamzatadlaoui.socialgraph.data.DocumentStore
 import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
+import io.github.hamzatadlaoui.socialgraph.model.Corner
+import io.github.hamzatadlaoui.socialgraph.model.CropBox
 import io.github.hamzatadlaoui.socialgraph.ui.Avatar
 import io.github.hamzatadlaoui.socialgraph.ui.drawBrackets
 import io.github.hamzatadlaoui.socialgraph.ui.theme.Mono
@@ -87,7 +97,7 @@ import kotlinx.coroutines.withContext
  * Everything that is not a picture is tagged as a whole instead, which is the
  * only sensible thing to say about a PDF or a recording.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DocumentScreen(
     viewModel: DocumentViewModel,
@@ -98,10 +108,10 @@ fun DocumentScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val pending by viewModel.pendingRegion.collectAsStateWithLifecycle()
+    val draft by viewModel.draft.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
-    var openTag by remember { mutableStateOf<TaggedPerson?>(null) }
+    var picking by remember { mutableStateOf(false) }
     val document = state.document
 
     val cannotOpen = stringResource(R.string.cannot_open_file)
@@ -151,15 +161,35 @@ fun DocumentScreen(
                     fileName = document.fileName,
                     files = files,
                     tagged = state.tagged,
-                    onRegionDrawn = viewModel::regionDrawn,
-                    onTagTapped = { openTag = it },
+                    draft = draft,
+                    onBeginRegion = viewModel::beginRegion,
+                    onDrawTo = viewModel::drawTo,
+                    onMoveBy = viewModel::moveBy,
+                    onDragCorner = viewModel::dragCorner,
+                    onDragFinished = viewModel::saveDraft,
+                    onSelect = viewModel::select,
+                    onDeselect = viewModel::clearDraft,
                 )
-                Text(
-                    text = stringResource(R.string.drag_to_tag),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
+
+                val open = draft
+                if (open != null && open.valid) {
+                    val who = state.tagged.firstOrNull { it.tag.id == open.tagId }
+                    EditingBar(
+                        name = who?.person?.fullName,
+                        canCrop = who != null,
+                        onName = { picking = true },
+                        onUseAsPhoto = { who?.let { viewModel.useAsPhoto(it) } },
+                        onRemove = viewModel::removeDraft,
+                        onDone = viewModel::clearDraft,
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.drag_to_tag),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
             } else {
                 NonImage(document.mimeType, document.originalName, document.sizeBytes)
             }
@@ -180,7 +210,7 @@ fun DocumentScreen(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedButton(onClick = { viewModel.tagWhole() }) {
+                OutlinedButton(onClick = { viewModel.tagWhole(); picking = true }) {
                     Icon(Icons.Default.PersonAdd, null, modifier = Modifier.size(18.dp))
                     Text(
                         text = stringResource(R.string.tag_whole_file),
@@ -195,7 +225,7 @@ fun DocumentScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { openTag = tagged }
+                        .clickable { onOpenPerson(tagged.person.id) }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Avatar(tagged.person.displayName, tagged.person.photo, photos, size = 40.dp)
@@ -214,24 +244,13 @@ fun DocumentScreen(
         }
     }
 
-    // Picking who a freshly drawn box belongs to.
-    if (pending != null) {
+    // Putting a name to whichever box is open.
+    if (picking) {
         PersonPicker(
             people = state.people,
             photos = photos,
-            onPick = { viewModel.tagPending(it) },
-            onDismiss = { viewModel.cancelRegion() },
-        )
-    }
-
-    openTag?.let { tagged ->
-        TagActions(
-            tagged = tagged,
-            canCrop = document?.isImage == true && !tagged.tag.whole,
-            onOpenPerson = { openTag = null; onOpenPerson(tagged.person.id) },
-            onUseAsPhoto = { viewModel.useAsPhoto(tagged); openTag = null },
-            onRemove = { viewModel.untag(tagged.tag.id); openTag = null },
-            onDismiss = { openTag = null },
+            onPick = { picking = false; viewModel.assign(it) },
+            onDismiss = { picking = false },
         )
     }
 
@@ -255,30 +274,43 @@ fun DocumentScreen(
     }
 }
 
+/** What the finger took hold of when the drag began. */
+private sealed interface Grab {
+    data object New : Grab
+    data object Move : Grab
+    data class Handle(val corner: Corner) : Grab
+}
+
 /**
- * The picture, with every tag drawn over it and a finger-drag making a new one.
+ * The picture, with every tag drawn over it and one of them open for editing.
  *
- * The image is fitted inside the view, so the drawn area is usually smaller than
- * the box it sits in; [fit] works out where it actually landed and every
- * conversion in either direction goes through that one rectangle.
+ * A box is never final: drag inside it to move it, drag a corner to resize it,
+ * drag anywhere else to start another. The image is fitted inside the view, so
+ * the drawn area is usually smaller than the box it sits in; [fit] works out
+ * where it actually landed and every conversion in either direction goes
+ * through that one rectangle.
  */
 @Composable
 private fun TaggableImage(
     fileName: String,
     files: DocumentStore,
     tagged: List<TaggedPerson>,
-    onRegionDrawn: (Float, Float, Float, Float) -> Unit,
-    onTagTapped: (TaggedPerson) -> Unit,
+    draft: DocumentViewModel.Draft?,
+    onBeginRegion: (Float, Float, Float, Float) -> Unit,
+    onDrawTo: (Float, Float, Float, Float) -> Unit,
+    onMoveBy: (Float, Float) -> Unit,
+    onDragCorner: (Corner, Float, Float) -> Unit,
+    onDragFinished: () -> Unit,
+    onSelect: (TaggedPerson) -> Unit,
+    onDeselect: () -> Unit,
 ) {
     var bitmap by remember(fileName) { mutableStateOf<Bitmap?>(null) }
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
-    var dragFrom by remember { mutableStateOf<Offset?>(null) }
-    var dragTo by remember { mutableStateOf<Offset?>(null) }
 
     val measurer = rememberTextMeasurer()
     val accent = MaterialTheme.colorScheme.primary
-    val marked = MaterialTheme.colorScheme.tertiary
-    val onAccent = MaterialTheme.colorScheme.onSurface
+    val editing = MaterialTheme.colorScheme.tertiary
+    val labelColour = MaterialTheme.colorScheme.onSurface
     val plate = MaterialTheme.colorScheme.surface
 
     LaunchedEffect(fileName) {
@@ -309,47 +341,105 @@ private fun TaggableImage(
             modifier = Modifier.fillMaxSize(),
         )
 
-        val frame = fit(image.width, image.height, viewSize)
+        // Where the picture actually landed inside the view, worked out by the
+        // tested geometry in model/ rather than here.
+        val fitted = CropBox.fitted(image.width, image.height, viewSize.width, viewSize.height)
+        val frame = Rect(fitted.left, fitted.top, fitted.right, fitted.bottom)
+        val handle = with(LocalDensity.current) { HANDLE.toPx() }
+        val reachPx = with(LocalDensity.current) { REACH.toPx() }
+        // Touch slop converted once, so the hit-testing stays in fractions.
+        val reach = if (frame.width > 0f) reachPx / frame.width else 0f
+
+        val open = draft?.box?.takeIf { viewSize.width > 0 }
+        val openRect = open?.let {
+            Rect(
+                left = frame.left + it.left * frame.width,
+                top = frame.top + it.top * frame.height,
+                right = frame.left + it.right * frame.width,
+                bottom = frame.top + it.bottom * frame.height,
+            )
+        }
+
+        var grab by remember { mutableStateOf<Grab>(Grab.New) }
+        var anchor by remember { mutableStateOf(Offset.Zero) }
+
+        // Read through these inside the gesture handlers rather than capturing
+        // them: keying pointerInput on a value that the drag itself changes
+        // restarts the detector mid-gesture, which cancels the very drag that
+        // caused it - the box would never grow past the point it started at.
+        val liveFrame by rememberUpdatedState(frame)
+        val liveOpen by rememberUpdatedState(open)
+        val liveReach by rememberUpdatedState(reach)
+        val liveTagged by rememberUpdatedState(tagged)
 
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(frame, tagged) {
+                .pointerInput(Unit) {
                     detectTapGestures { tap ->
-                        if (frame.width <= 0f) return@detectTapGestures
-                        val fx = (tap.x - frame.left) / frame.width
-                        val fy = (tap.y - frame.top) / frame.height
-                        tagged.firstOrNull { (tag, _) ->
+                        val frameNow = liveFrame
+                        if (frameNow.width <= 0f) return@detectTapGestures
+
+                        val fx = (tap.x - frameNow.left) / frameNow.width
+                        val fy = (tap.y - frameNow.top) / frameNow.height
+                        // A tap inside the open box leaves it open; anywhere
+                        // else either picks up another tag or puts this one down.
+                        if (liveOpen?.contains(fx, fy) == true) return@detectTapGestures
+
+                        val hit = liveTagged.firstOrNull { (tag, _) ->
                             !tag.whole &&
                                 fx >= tag.left && fx <= tag.right &&
                                 fy >= tag.top && fy <= tag.bottom
-                        }?.let(onTagTapped)
+                        }
+                        if (hit != null) onSelect(hit) else onDeselect()
                     }
                 }
-                .pointerInput(frame) {
+                .pointerInput(Unit) {
                     detectDragGestures(
-                        onDragStart = { dragFrom = it; dragTo = it },
-                        onDrag = { change, _ -> dragTo = change.position },
-                        onDragCancel = { dragFrom = null; dragTo = null },
-                        onDragEnd = {
-                            val from = dragFrom
-                            val to = dragTo
-                            dragFrom = null
-                            dragTo = null
-                            if (from != null && to != null && frame.width > 0f) {
-                                onRegionDrawn(
-                                    (from.x - frame.left) / frame.width,
-                                    (from.y - frame.top) / frame.height,
-                                    (to.x - frame.left) / frame.width,
-                                    (to.y - frame.top) / frame.height,
+                        onDragStart = { at ->
+                            val frameNow = liveFrame
+                            if (frameNow.width <= 0f) return@detectDragGestures
+                            anchor = at
+                            val fx = (at.x - frameNow.left) / frameNow.width
+                            val fy = (at.y - frameNow.top) / frameNow.height
+                            val box = liveOpen
+                            val corner = box?.cornerAt(fx, fy, liveReach)
+                            grab = when {
+                                corner != null -> Grab.Handle(corner)
+                                box?.contains(fx, fy) == true -> Grab.Move
+                                else -> Grab.New
+                            }
+                            if (grab == Grab.New) onBeginRegion(fx, fy, fx, fy)
+                        },
+                        onDrag = { change, delta ->
+                            val frameNow = liveFrame
+                            if (frameNow.width <= 0f) return@detectDragGestures
+                            change.consume()
+                            val at = change.position
+                            val fx = (at.x - frameNow.left) / frameNow.width
+                            val fy = (at.y - frameNow.top) / frameNow.height
+
+                            when (val held = grab) {
+                                Grab.New -> onDrawTo(
+                                    (anchor.x - frameNow.left) / frameNow.width,
+                                    (anchor.y - frameNow.top) / frameNow.height,
+                                    fx,
+                                    fy,
                                 )
+                                Grab.Move -> onMoveBy(
+                                    delta.x / frameNow.width,
+                                    delta.y / frameNow.height,
+                                )
+                                is Grab.Handle -> onDragCorner(held.corner, fx, fy)
                             }
                         },
+                        onDragEnd = { onDragFinished() },
+                        onDragCancel = { onDragFinished() },
                     )
                 },
         ) {
             for ((tag, person) in tagged) {
-                if (tag.whole) continue
+                if (tag.whole || tag.id == draft?.tagId) continue
                 val box = Rect(
                     left = frame.left + tag.left * frame.width,
                     top = frame.top + tag.top * frame.height,
@@ -358,49 +448,55 @@ private fun TaggableImage(
                 )
                 drawRect(accent, box.topLeft, box.size, style = Stroke(width = 2f))
                 drawBrackets(box, accent, 3f)
-
-                val label = measurer.measure(
-                    text = person.displayName,
-                    style = TextStyle(fontFamily = Mono, fontSize = 11.sp, color = onAccent),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val pad = 4f
-                drawRect(
-                    color = plate,
-                    topLeft = Offset(box.left, box.bottom),
-                    size = Size(label.size.width + pad * 2, label.size.height + pad * 2),
-                )
-                drawText(label, topLeft = Offset(box.left + pad, box.bottom + pad))
+                drawLabel(measurer, person.displayName, box, plate, labelColour)
             }
 
-            // The box currently under the finger.
-            val from = dragFrom
-            val to = dragTo
-            if (from != null && to != null) {
-                val box = Rect(
-                    left = minOf(from.x, to.x),
-                    top = minOf(from.y, to.y),
-                    right = maxOf(from.x, to.x),
-                    bottom = maxOf(from.y, to.y),
-                )
-                drawRect(marked, box.topLeft, box.size, style = Stroke(width = 2f))
+            // The one being worked on: amber, with corners to take hold of.
+            if (openRect != null) {
+                drawRect(editing, openRect.topLeft, openRect.size, style = Stroke(width = 2f))
+                for (corner in corners(openRect)) {
+                    drawRect(
+                        color = editing,
+                        topLeft = Offset(corner.x - handle / 2f, corner.y - handle / 2f),
+                        size = Size(handle, handle),
+                    )
+                }
             }
         }
     }
 }
 
-/** Where a [ContentScale.Fit] image of this shape actually lands inside [view]. */
-private fun fit(imageWidth: Int, imageHeight: Int, view: IntSize): Rect {
-    if (imageWidth <= 0 || imageHeight <= 0 || view.width <= 0 || view.height <= 0) {
-        return Rect(0f, 0f, 0f, 0f)
-    }
-    val scale = minOf(view.width.toFloat() / imageWidth, view.height.toFloat() / imageHeight)
-    val width = imageWidth * scale
-    val height = imageHeight * scale
-    val left = (view.width - width) / 2f
-    val top = (view.height - height) / 2f
-    return Rect(left, top, left + width, top + height)
+private fun corners(box: Rect) = listOf(
+    box.topLeft,
+    Offset(box.right, box.top),
+    Offset(box.left, box.bottom),
+    box.bottomRight,
+)
+
+private fun near(at: Offset, corner: Offset, reach: Float): Boolean =
+    kotlin.math.abs(at.x - corner.x) <= reach && kotlin.math.abs(at.y - corner.y) <= reach
+
+/** The name on a small plate under its box, so an edge cannot swallow it. */
+private fun DrawScope.drawLabel(
+    measurer: TextMeasurer,
+    name: String,
+    box: Rect,
+    plate: Color,
+    colour: Color,
+) {
+    val laid = measurer.measure(
+        text = name,
+        style = TextStyle(fontFamily = Mono, fontSize = 11.sp, color = colour),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+    val pad = 4f
+    drawRect(
+        color = plate,
+        topLeft = Offset(box.left, box.bottom),
+        size = Size(laid.size.width + pad * 2, laid.size.height + pad * 2),
+    )
+    drawText(laid, topLeft = Offset(box.left + pad, box.bottom + pad))
 }
 
 @Composable
@@ -473,37 +569,55 @@ private fun PersonPicker(
     )
 }
 
+/**
+ * What can be done with the box currently open. Sits under the picture rather
+ * than in a dialog, so the box stays visible and adjustable while it is used.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TagActions(
-    tagged: TaggedPerson,
+private fun EditingBar(
+    name: String?,
     canCrop: Boolean,
-    onOpenPerson: () -> Unit,
+    onName: () -> Unit,
     onUseAsPhoto: () -> Unit,
     onRemove: () -> Unit,
-    onDismiss: () -> Unit,
+    onDone: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(tagged.person.fullName) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onOpenPerson) {
-                    Text(stringResource(R.string.open_profile))
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Text(
+            text = stringResource(
+                if (name == null) R.string.drag_to_adjust_new else R.string.drag_to_adjust,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        // Wraps rather than scrolls: these buttons all matter, and one of them
+        // sliding off the right-hand edge is how you press the wrong one.
+        FlowRow(
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (name == null) {
+                Button(onClick = onName) {
+                    Icon(Icons.Default.PersonAdd, null, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = stringResource(R.string.tag_someone),
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
                 }
+            } else {
+                TextButton(onClick = onName) { Text(name) }
                 if (canCrop) {
                     TextButton(onClick = onUseAsPhoto) {
                         Text(stringResource(R.string.use_as_photo))
                     }
                 }
-                TextButton(onClick = onRemove) {
-                    Text(stringResource(R.string.remove_tag))
-                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) }
-        },
-    )
+            TextButton(onClick = onRemove) { Text(stringResource(R.string.remove_tag)) }
+            TextButton(onClick = onDone) { Text(stringResource(R.string.done_adjusting)) }
+        }
+    }
 }
 
 /** Hands the file to whatever else on the phone can read it. */
@@ -534,3 +648,9 @@ private fun open(
 
 /** Enough pixels to tag a face in a group photograph without holding the original in memory. */
 private const val LARGE = 1400
+
+/** The corner squares: big enough to see, small enough not to cover the face. */
+private val HANDLE = 12.dp
+
+/** How close a finger has to land to count as taking hold of a corner. */
+private val REACH = 28.dp

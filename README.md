@@ -67,9 +67,16 @@ tagged as a whole, which is the only sensible thing to say about a PDF. Either
 way the tag reads from both ends: the file lists who is in it, and a person's
 page grows an **Appears in** section.
 
-`DocumentTagEntity.region` refuses a rectangle under two per cent of the picture
-each way, because a stray tap on a photograph should not silently become a tag.
-Deleting a file, or a person, takes their tags with it.
+No box is final. Tap one to open it again: drag inside it to move it, drag a
+corner to resize it, and the change is written back as soon as you let go.
+`CropBox` in `model/` holds that arithmetic - flipping a box dragged past its own
+corner, stopping it at the edges of the picture, working out where a fitted image
+actually landed inside the view - and being plain Kotlin, all of it is covered by
+ordinary JVM tests rather than by poking at a phone.
+
+A rectangle under two per cent of the picture each way is refused, because a stray
+tap on a photograph should not silently become a tag. Deleting a file, or a
+person, takes their tags with it.
 
 ## The look
 
