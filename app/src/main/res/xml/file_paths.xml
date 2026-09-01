@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the document folder is ever shared, and only for as long as the
+     receiving app holds the grant. Nothing else in files/ is reachable. -->
+<paths>
+    <files-path name="documents" path="documents/" />
+</paths>

@@ -1,5 +1,7 @@
 package io.github.hamzatadlaoui.socialgraph
 
+import io.github.hamzatadlaoui.socialgraph.data.DocumentEntity
+import io.github.hamzatadlaoui.socialgraph.data.DocumentTagEntity
 import io.github.hamzatadlaoui.socialgraph.data.PersonEntity
 import io.github.hamzatadlaoui.socialgraph.data.RelationshipEntity
 import io.github.hamzatadlaoui.socialgraph.export.Backup
@@ -91,6 +93,72 @@ class BackupTest {
         assertEquals(1, ties.size)
         // An unreadable kind of tie is kept as a plain "knows" rather than dropped.
         assertEquals(RelationshipType.KNOWS, ties.first().type)
+    }
+
+    @Test
+    fun `documents and their tags survive the round trip`() {
+        val photo = DocumentEntity(
+            id = "doc-1",
+            fileName = "abc.jpg",
+            originalName = "wedding.jpg",
+            mimeType = "image/jpeg",
+            title = "The wedding",
+            notes = "Back garden.",
+            dated = FuzzyDate(2004, 6),
+            sizeBytes = 204_800,
+            addedAt = 1_700_000_002_000,
+        )
+        val face = DocumentTagEntity(
+            id = "tag-1",
+            documentId = "doc-1",
+            personId = "claire",
+            left = 0.25f,
+            top = 0.1f,
+            right = 0.45f,
+            bottom = 0.4f,
+        )
+        val wholeThing = DocumentTagEntity(id = "tag-2", documentId = "doc-1", personId = "marc")
+
+        val json = Backup.toJson(
+            people = listOf(claire, marc),
+            relationships = listOf(married),
+            documents = listOf(photo),
+            tags = listOf(face, wholeThing),
+        )
+        val read = JSONObject(json.toString())
+
+        assertEquals(listOf(photo), Backup.documentsFrom(read))
+
+        val tags = Backup.tagsFrom(read)
+        assertEquals(2, tags.size)
+        // The region has to come back exactly, or every face moves.
+        assertEquals(0.25f, tags.first().left, 0.0001f)
+        assertEquals(0.4f, tags.first().bottom, 0.0001f)
+        assertEquals(false, tags.first().whole)
+        assertEquals(true, tags[1].whole)
+    }
+
+    @Test
+    fun `a version one backup still restores, it simply has no documents`() {
+        // Exactly what the previous release wrote: no documents, no documentTags.
+        val old = JSONObject(
+            """
+            {
+              "version": 1,
+              "people": [{ "id": "ada", "displayName": "Ada" }],
+              "relationships": []
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(1, Backup.peopleFrom(old).size)
+        assertTrue(Backup.documentsFrom(old).isEmpty())
+        assertTrue(Backup.tagsFrom(old).isEmpty())
+    }
+
+    @Test
+    fun `the format version says two, now that documents are in it`() {
+        assertEquals(2, Backup.VERSION)
     }
 
     @Test

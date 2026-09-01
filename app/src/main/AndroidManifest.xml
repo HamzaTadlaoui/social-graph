@@ -24,6 +24,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Handing a document to whatever else on the phone can read it.
+             Not exported: the receiving app gets a one-off read grant on the
+             single file, and nothing else under files/ is reachable. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>

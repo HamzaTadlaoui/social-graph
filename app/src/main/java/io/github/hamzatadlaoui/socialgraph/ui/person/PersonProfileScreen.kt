@@ -32,10 +32,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.hamzatadlaoui.socialgraph.R
+import io.github.hamzatadlaoui.socialgraph.data.DocumentStore
 import io.github.hamzatadlaoui.socialgraph.data.PersonEntity
 import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
 import io.github.hamzatadlaoui.socialgraph.model.RelationshipType
 import io.github.hamzatadlaoui.socialgraph.ui.Avatar
+import io.github.hamzatadlaoui.socialgraph.ui.documents.FileThumb
 
 /**
  * The dossier: one person, everything known about them, and every tie they
@@ -46,6 +48,8 @@ import io.github.hamzatadlaoui.socialgraph.ui.Avatar
 fun PersonProfileScreen(
     viewModel: PersonProfileViewModel,
     photos: PhotoStore,
+    files: DocumentStore,
+    onOpenDocument: (String) -> Unit,
     onEdit: () -> Unit,
     onAddRelationship: () -> Unit,
     onOpenPerson: (String) -> Unit,
@@ -53,6 +57,7 @@ fun PersonProfileScreen(
 ) {
     val person by viewModel.person.collectAsStateWithLifecycle()
     val ties by viewModel.ties.collectAsStateWithLifecycle()
+    val documents by viewModel.documents.collectAsStateWithLifecycle()
     val months = stringArrayResource(R.array.months).toList()
 
     Scaffold(
@@ -103,6 +108,34 @@ fun PersonProfileScreen(
                         onOpen = { onOpenPerson(tie.other.id) },
                         onUnlink = { viewModel.unlink(tie) },
                     )
+                }
+            }
+
+            // The other end of a tag: the files this person turns up in.
+            if (documents.isNotEmpty()) {
+                item {
+                    SectionTitle(
+                        title = stringResource(R.string.appears_in),
+                        count = documents.size,
+                    )
+                }
+                items(documents, key = { it.id }) { document ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenDocument(document.id) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        FileThumb(document.fileName, document.mimeType, files, size = 40.dp)
+                        Text(
+                            text = document.label.ifBlank {
+                                stringResource(R.string.untitled_document)
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
                 }
             }
 

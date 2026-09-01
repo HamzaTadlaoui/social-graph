@@ -3,6 +3,7 @@ package io.github.hamzatadlaoui.socialgraph.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material3.Icon
@@ -33,6 +34,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import io.github.hamzatadlaoui.socialgraph.AppContainer
 import io.github.hamzatadlaoui.socialgraph.R
+import io.github.hamzatadlaoui.socialgraph.ui.documents.DocumentScreen
+import io.github.hamzatadlaoui.socialgraph.ui.documents.DocumentViewModel
+import io.github.hamzatadlaoui.socialgraph.ui.documents.DocumentsScreen
+import io.github.hamzatadlaoui.socialgraph.ui.documents.DocumentsViewModel
 import io.github.hamzatadlaoui.socialgraph.ui.family.FamilyScreen
 import io.github.hamzatadlaoui.socialgraph.ui.family.FamilyViewModel
 import io.github.hamzatadlaoui.socialgraph.ui.graph.GraphScreen
@@ -52,6 +57,9 @@ private object Routes {
     const val PEOPLE = "people"
     const val GRAPH = "graph"
     const val FAMILY = "family"
+    const val FILES = "files"
+    const val DOCUMENT = "document"
+    const val DOCUMENT_ID = "documentId"
     const val EDIT = "edit"
     const val PROFILE = "person"
     const val ADD_TIE = "tie"
@@ -64,6 +72,8 @@ private object Routes {
     fun profile(personId: String) = "$PROFILE/$personId"
 
     fun addTie(personId: String) = "$ADD_TIE/$personId"
+
+    fun document(documentId: String) = "$DOCUMENT/$documentId"
 }
 
 private data class Tab(val route: String, val label: Int, val icon: ImageVector)
@@ -72,6 +82,7 @@ private val tabs = listOf(
     Tab(Routes.PEOPLE, R.string.tab_people, Icons.Default.Group),
     Tab(Routes.GRAPH, R.string.tab_graph, Icons.Default.Hub),
     Tab(Routes.FAMILY, R.string.tab_family, Icons.Default.AccountTree),
+    Tab(Routes.FILES, R.string.tab_files, Icons.Default.Folder),
 )
 
 @Composable
@@ -82,8 +93,8 @@ fun SocialGraphApp(container: AppContainer) {
 
     Scaffold(
         bottomBar = {
-            // The bar is for the three ways of looking at the same database;
-            // a form opened on top of one of them is not a fourth place to be.
+            // The bar is for the four ways of looking at the same database;
+            // a form opened on top of one of them is not a fifth place to be.
             if (route in tabs.map { it.route }) {
                 NavigationBar {
                     tabs.forEach { tab ->
@@ -130,7 +141,13 @@ fun SocialGraphApp(container: AppContainer) {
             composable(Routes.SETTINGS) {
                 val viewModel: SettingsViewModel = viewModel(
                     factory = viewModelFactory {
-                        initializer { SettingsViewModel(container.repository, container.photos) }
+                        initializer {
+                            SettingsViewModel(
+                                container.repository,
+                                container.photos,
+                                container.documents,
+                            )
+                        }
                     },
                 )
                 SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
@@ -157,6 +174,46 @@ fun SocialGraphApp(container: AppContainer) {
                 FamilyScreen(
                     viewModel = viewModel,
                     onOpenPerson = { id -> navController.navigate(Routes.profile(id)) },
+                )
+            }
+
+            composable(Routes.FILES) {
+                val viewModel: DocumentsViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { DocumentsViewModel(container.repository, container.documents) }
+                    },
+                )
+                DocumentsScreen(
+                    viewModel = viewModel,
+                    files = container.documents,
+                    onOpenDocument = { id -> navController.navigate(Routes.document(id)) },
+                )
+            }
+
+            composable(
+                route = "${Routes.DOCUMENT}/{${Routes.DOCUMENT_ID}}",
+                arguments = listOf(navArgument(Routes.DOCUMENT_ID) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val documentId = backStackEntry.arguments?.getString(Routes.DOCUMENT_ID).orEmpty()
+                val viewModel: DocumentViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer {
+                            DocumentViewModel(
+                                container.repository,
+                                container.documents,
+                                container.photos,
+                                documentId,
+                            )
+                        }
+                    },
+                )
+                DocumentScreen(
+                    viewModel = viewModel,
+                    files = container.documents,
+                    photos = container.photos,
+                    onOpenPerson = { id -> navController.navigate(Routes.profile(id)) },
+                    onDeleted = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
                 )
             }
 
@@ -213,6 +270,8 @@ fun SocialGraphApp(container: AppContainer) {
                 PersonProfileScreen(
                     viewModel = viewModel,
                     photos = container.photos,
+                    files = container.documents,
+                    onOpenDocument = { id -> navController.navigate(Routes.document(id)) },
                     onEdit = { navController.navigate(Routes.edit(personId)) },
                     onAddRelationship = { navController.navigate(Routes.addTie(personId)) },
                     // Walking to a neighbour keeps the trail, so Back retraces it.

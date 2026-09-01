@@ -2,6 +2,7 @@ package io.github.hamzatadlaoui.socialgraph.ui.person
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.hamzatadlaoui.socialgraph.data.DocumentEntity
 import io.github.hamzatadlaoui.socialgraph.data.PeopleRepository
 import io.github.hamzatadlaoui.socialgraph.data.PersonEntity
 import io.github.hamzatadlaoui.socialgraph.data.RelationshipEntity
@@ -21,6 +22,10 @@ class PersonProfileViewModel(
 
     val person: StateFlow<PersonEntity?> = repository.person(personId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Every document this person has been tagged in - the other end of a tag. */
+    val documents: StateFlow<List<DocumentEntity>> = repository.documentsOf(personId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val ties: StateFlow<List<Tie>> =
         combine(repository.relationshipsOf(personId), repository.people()) { relationships, people ->

@@ -30,7 +30,7 @@ before upgrading anything.
 | `model/`  | `FuzzyDate`, `RelationshipType` — plain Kotlin, no Android               |
 | `graph/`  | ego networks, family trees, shortest paths — also plain Kotlin           |
 | `data/`   | Room entities, DAOs, the repository, the photo store                    |
-| `ui/`     | Compose screens: people, dossier, graph, family, settings               |
+| `ui/`     | Compose screens: people, dossier, graph, family, files, settings         |
 | `ui/theme/` | the palette, the type scale and the shapes — the whole look           |
 | `export/` | the backup format                                                       |
 
@@ -50,6 +50,26 @@ then a flat `WHERE fromId = ?`, and removing a tie is one delete by `pairId`.
 `FuzzyDate` holds a year, optionally a month, optionally a day, and a flag for
 "about". It is stored as one string: `1974-03-12`, `1974-03`, `1974`, `c.1974`,
 or empty for unknown. The UI never asks for precision the user does not have.
+
+## Files, and who is in them
+
+A fourth tab holds documents: photographs, scanned letters, certificates,
+recordings - any file at all. Each one is copied into the app's own storage
+rather than pointed at, for the same reason photos are: a content URI's
+permission can be withdrawn, and a document that vanishes from a dossier is
+worse than the copy costing space.
+
+Anyone can be tagged in a file. On a photograph you drag a box round a face and
+give it a name, as many times as there are people in it; the region is stored as
+fractions of the image rather than pixels, so it still means the same thing after
+the picture is re-encoded at another size. Anything that is not an image is
+tagged as a whole, which is the only sensible thing to say about a PDF. Either
+way the tag reads from both ends: the file lists who is in it, and a person's
+page grows an **Appears in** section.
+
+`DocumentTagEntity.region` refuses a rectangle under two per cent of the picture
+each way, because a stray tap on a photograph should not silently become a tag.
+Deleting a file, or a person, takes their tags with it.
 
 ## The look
 
@@ -73,16 +93,21 @@ see `THIRD-PARTY.md` for their provenance and licence.
 ```
 social-graph-2026-09-01.zip
 ├── backup.json
-└── photos/
-    ├── 2b1e….jpg
+├── photos/
+│   ├── 2b1e….jpg
+│   └── …
+└── documents/
+    ├── a73f….png
     └── …
 ```
 
-`backup.json` is plain, documented JSON so it outlives any one build of the app:
+Documents are included rather than merely listed: a backup that restores to a set
+of entries with no files behind them is not a backup. `backup.json` is plain,
+documented JSON so it outlives any one build of the app:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "people": [
     {
       "id": "…", "displayName": "Claire", "lastName": "Martin",
@@ -105,3 +130,7 @@ social-graph-2026-09-01.zip
 Both directions of each tie appear, sharing their `pairId`. Restoring matches on
 `id`, so restoring the same file twice leaves one copy rather than two, and a row
 that cannot be read is skipped rather than failing the whole restore.
+
+Version 2 added `documents` and `documentTags`. A version 1 file simply has
+neither and still restores, which is why every reader is written to find nothing
+rather than to fail.

@@ -1,6 +1,7 @@
 package io.github.hamzatadlaoui.socialgraph
 
 import android.content.Context
+import io.github.hamzatadlaoui.socialgraph.data.DocumentStore
 import io.github.hamzatadlaoui.socialgraph.data.PeopleRepository
 import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
 import io.github.hamzatadlaoui.socialgraph.data.RoomPeopleRepository
@@ -15,4 +16,6 @@ class AppContainer(context: Context) {
     val repository: PeopleRepository = RoomPeopleRepository(SocialGraphDatabase.get(context))
 
     val photos: PhotoStore = PhotoStore(context)
+
+    val documents: DocumentStore = DocumentStore(context)
 }

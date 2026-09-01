@@ -108,6 +108,42 @@
     <string name="restore_failed">That file did not hold a backup this app can read.</string>
     <string name="privacy_note">Everything stays on this phone. The app has no internet permission, so it could not send your notes anywhere even if it wanted to.</string>
 
+    <!-- The document shelf. -->
+    <string name="tab_files">Files</string>
+    <string name="search_documents">Search files</string>
+    <string name="add_document">Add a file</string>
+    <string name="no_documents_yet">Nothing filed yet.\n\nAdd a photograph, a letter or a certificate with the button below.</string>
+    <string name="no_documents_found">Nothing by that name.</string>
+    <string name="untitled_document">Untitled</string>
+    <string name="document_title_hint">Title</string>
+    <string name="document_notes_hint">Notes</string>
+    <string name="document_dated_hint">Dated</string>
+    <string name="drag_to_tag">Drag a box around someone to tag them.</string>
+    <string name="tag_someone">Tag someone</string>
+    <string name="tag_whole_file">Tag someone in this file</string>
+    <string name="who_is_this">Who is this?</string>
+    <string name="tagged_here">In this file</string>
+    <string name="remove_tag">Remove tag</string>
+    <string name="open_file">Open</string>
+    <string name="cannot_open_file">Nothing on this phone can open that file.</string>
+    <string name="delete_document">Delete file</string>
+    <string name="use_as_photo">Use as their photo</string>
+    <string name="appears_in">Appears in</string>
+    <string name="tag_added">Tagged %1$s.</string>
+    <string name="document_added">Filed %1$s.</string>
+    <string name="document_failed">Could not read that file.</string>
+    <string name="export_size_hint">Documents on this phone: %1$s.</string>
+
+    <plurals name="tagged_count">
+        <item quantity="one">%1$d person tagged</item>
+        <item quantity="other">%1$d people tagged</item>
+    </plurals>
+
+    <plurals name="document_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+
     <plurals name="people_count">
         <item quantity="one">%1$d person</item>
         <item quantity="other">%1$d people</item>

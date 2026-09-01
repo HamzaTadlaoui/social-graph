@@ -59,6 +59,38 @@ interface PeopleRepository {
      * saved under, so restoring the same file twice leaves one copy, not two.
      */
     suspend fun restore(people: List<PersonEntity>, relationships: List<RelationshipEntity>)
+
+    // The document shelf. Kept on this interface rather than a second one
+    // because a tag is a tie between a person and a file, and the screens that
+    // ask about one invariably ask about the other.
+
+    fun documents(): Flow<List<DocumentEntity>>
+
+    fun searchDocuments(term: String): Flow<List<DocumentEntity>>
+
+    fun document(id: String): Flow<DocumentEntity?>
+
+    /** Who has been marked in this document, and whereabouts. */
+    fun tagsOn(documentId: String): Flow<List<DocumentTagEntity>>
+
+    /** The other direction: every document this person appears in. */
+    fun documentsOf(personId: String): Flow<List<DocumentEntity>>
+
+    fun tagsOf(personId: String): Flow<List<DocumentTagEntity>>
+
+    suspend fun findDocument(id: String): DocumentEntity?
+
+    suspend fun saveDocument(document: DocumentEntity): DocumentEntity
+
+    suspend fun deleteDocument(document: DocumentEntity)
+
+    suspend fun tag(tag: DocumentTagEntity)
+
+    suspend fun untag(tagId: String)
+
+    suspend fun documentSnapshot(): Pair<List<DocumentEntity>, List<DocumentTagEntity>>
+
+    suspend fun restoreDocuments(documents: List<DocumentEntity>, tags: List<DocumentTagEntity>)
 }
 
 class RoomPeopleRepository(
@@ -68,6 +100,7 @@ class RoomPeopleRepository(
 
     private val people = db.people()
     private val relationships = db.relationships()
+    private val documents = db.documents()
 
     override fun people(): Flow<List<PersonEntity>> = people.all()
 
@@ -146,6 +179,54 @@ class RoomPeopleRepository(
                 this@RoomPeopleRepository.people.snapshot().map { it.id }
             this@RoomPeopleRepository.relationships.upsertAll(
                 relationships.filter { it.fromId in known && it.toId in known },
+            )
+        }
+    }
+
+    override fun documents(): Flow<List<DocumentEntity>> = documents.all()
+
+    override fun searchDocuments(term: String): Flow<List<DocumentEntity>> =
+        if (term.isBlank()) documents.all() else documents.search(term.trim())
+
+    override fun document(id: String): Flow<DocumentEntity?> = documents.byId(id)
+
+    override fun tagsOn(documentId: String): Flow<List<DocumentTagEntity>> =
+        documents.tagsOn(documentId)
+
+    override fun documentsOf(personId: String): Flow<List<DocumentEntity>> =
+        documents.documentsOf(personId)
+
+    override fun tagsOf(personId: String): Flow<List<DocumentTagEntity>> =
+        documents.tagsOf(personId)
+
+    override suspend fun findDocument(id: String): DocumentEntity? = documents.find(id)
+
+    override suspend fun saveDocument(document: DocumentEntity): DocumentEntity {
+        val stamped = document.copy(addedAt = if (document.addedAt == 0L) now() else document.addedAt)
+        documents.upsert(stamped)
+        return stamped
+    }
+
+    override suspend fun deleteDocument(document: DocumentEntity) = documents.delete(document)
+
+    override suspend fun tag(tag: DocumentTagEntity) = documents.upsertTag(tag)
+
+    override suspend fun untag(tagId: String) = documents.deleteTag(tagId)
+
+    override suspend fun documentSnapshot(): Pair<List<DocumentEntity>, List<DocumentTagEntity>> =
+        db.withTransaction { documents.snapshot() to documents.tagSnapshot() }
+
+    override suspend fun restoreDocuments(
+        documents: List<DocumentEntity>,
+        tags: List<DocumentTagEntity>,
+    ) {
+        db.withTransaction {
+            this@RoomPeopleRepository.documents.upsertAll(documents)
+            // A tag needs both ends to exist, the same as a tie does.
+            val files = this@RoomPeopleRepository.documents.snapshot().map { it.id }.toSet()
+            val known = this@RoomPeopleRepository.people.snapshot().map { it.id }.toSet()
+            this@RoomPeopleRepository.documents.upsertTags(
+                tags.filter { it.documentId in files && it.personId in known },
             )
         }
     }

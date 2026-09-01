@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.hamzatadlaoui.socialgraph.R
+import io.github.hamzatadlaoui.socialgraph.data.DocumentStore
 import io.github.hamzatadlaoui.socialgraph.data.PeopleRepository
 import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
 import io.github.hamzatadlaoui.socialgraph.export.Backup
@@ -19,6 +20,7 @@ import kotlinx.coroutines.withContext
 class SettingsViewModel(
     private val repository: PeopleRepository,
     private val photos: PhotoStore,
+    private val files: DocumentStore,
 ) : ViewModel() {
 
     /** What just happened, shown once and then cleared. */
@@ -33,10 +35,11 @@ class SettingsViewModel(
         if (target == null) return
         viewModelScope.launch {
             val (people, relationships) = repository.snapshot()
+            val (documents, tags) = repository.documentSnapshot()
             val wrote = withContext(Dispatchers.IO) {
                 runCatching {
                     context.contentResolver.openOutputStream(target)?.use { out ->
-                        Backup.write(out, people, relationships, photos)
+                        Backup.write(out, people, relationships, photos, documents, tags, files)
                     } ?: return@runCatching false
                     true
                 }.getOrDefault(false)
@@ -55,7 +58,7 @@ class SettingsViewModel(
             val restored = withContext(Dispatchers.IO) {
                 runCatching {
                     context.contentResolver.openInputStream(source)?.use { input ->
-                        Backup.read(input, photos)
+                        Backup.read(input, photos, files)
                     }
                 }.getOrNull()
             }
@@ -64,6 +67,8 @@ class SettingsViewModel(
                 return@launch
             }
             repository.restore(restored.people, restored.relationships)
+            // Documents after people: a tag needs both ends to exist already.
+            repository.restoreDocuments(restored.documents, restored.tags)
             message = Message(R.string.restore_done, restored.people.size)
         }
     }

@@ -1,5 +1,8 @@
 package io.github.hamzatadlaoui.socialgraph.export
 
+import io.github.hamzatadlaoui.socialgraph.data.DocumentEntity
+import io.github.hamzatadlaoui.socialgraph.data.DocumentStore
+import io.github.hamzatadlaoui.socialgraph.data.DocumentTagEntity
 import io.github.hamzatadlaoui.socialgraph.data.PersonEntity
 import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
 import io.github.hamzatadlaoui.socialgraph.data.RelationshipEntity
@@ -16,17 +19,23 @@ import java.util.zip.ZipOutputStream
 
 /**
  * The whole database as one file the user owns: a `backup.json` describing
- * every person and every tie, plus a copy of every photo.
+ * every person, every tie and every document, plus a copy of every photo and
+ * every filed document.
  *
  * Written as plain JSON on purpose (section 16 asks for the format to be
  * documented): a backup should still be readable in ten years by something
  * that is not this app.
+ *
+ * Version 2 added `documents` and `documentTags`. A version 1 file simply has
+ * neither, and still restores - which is why every reader here is written to
+ * find nothing rather than to fail.
  */
 object Backup {
 
-    const val VERSION = 1
+    const val VERSION = 2
     const val JSON_ENTRY = "backup.json"
     const val PHOTOS_ENTRY = "photos/"
+    const val DOCUMENTS_ENTRY = "documents/"
 
     /** What the file is called when the user is asked where to put it. */
     fun fileName(now: Long): String = "social-graph-${DATE.format(java.util.Date(now))}.zip"
@@ -34,10 +43,14 @@ object Backup {
     fun toJson(
         people: List<PersonEntity>,
         relationships: List<RelationshipEntity>,
+        documents: List<DocumentEntity> = emptyList(),
+        tags: List<DocumentTagEntity> = emptyList(),
     ): JSONObject = JSONObject()
         .put(KEY_VERSION, VERSION)
         .put(KEY_PEOPLE, JSONArray().apply { people.forEach { put(it.toJson()) } })
         .put(KEY_TIES, JSONArray().apply { relationships.forEach { put(it.toJson()) } })
+        .put(KEY_DOCUMENTS, JSONArray().apply { documents.forEach { put(it.toJson()) } })
+        .put(KEY_TAGS, JSONArray().apply { tags.forEach { put(it.toJson()) } })
 
     fun peopleFrom(json: JSONObject): List<PersonEntity> =
         json.optJSONArray(KEY_PEOPLE).objects().mapNotNull { personFrom(it) }
@@ -45,16 +58,30 @@ object Backup {
     fun relationshipsFrom(json: JSONObject): List<RelationshipEntity> =
         json.optJSONArray(KEY_TIES).objects().mapNotNull { relationshipFrom(it) }
 
-    /** Writes the zip: the JSON first, then every photo any person refers to. */
+    fun documentsFrom(json: JSONObject): List<DocumentEntity> =
+        json.optJSONArray(KEY_DOCUMENTS).objects().mapNotNull { documentFrom(it) }
+
+    fun tagsFrom(json: JSONObject): List<DocumentTagEntity> =
+        json.optJSONArray(KEY_TAGS).objects().mapNotNull { tagFrom(it) }
+
+    /**
+     * Writes the zip: the JSON first, then every photo any person refers to and
+     * every document on the shelf. Documents are included rather than merely
+     * listed, because a backup that restores to a set of dangling entries with
+     * no files behind them is not a backup.
+     */
     fun write(
         out: OutputStream,
         people: List<PersonEntity>,
         relationships: List<RelationshipEntity>,
         photos: PhotoStore,
+        documents: List<DocumentEntity> = emptyList(),
+        tags: List<DocumentTagEntity> = emptyList(),
+        files: DocumentStore? = null,
     ) {
         ZipOutputStream(out.buffered()).use { zip ->
             zip.putNextEntry(ZipEntry(JSON_ENTRY))
-            zip.write(toJson(people, relationships).toString(2).toByteArray())
+            zip.write(toJson(people, relationships, documents, tags).toString(2).toByteArray())
             zip.closeEntry()
 
             for (name in people.map { it.photo }.filter { it.isNotEmpty() }.distinct()) {
@@ -63,6 +90,15 @@ object Backup {
                 file.inputStream().use { it.copyTo(zip) }
                 zip.closeEntry()
             }
+
+            if (files != null) {
+                for (name in documents.map { it.fileName }.filter { it.isNotEmpty() }.distinct()) {
+                    val file = files.file(name).takeIf { it.isFile } ?: continue
+                    zip.putNextEntry(ZipEntry(DOCUMENTS_ENTRY + name))
+                    file.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
+            }
         }
     }
 
@@ -70,7 +106,7 @@ object Backup {
      * Reads a zip back, putting the photos where they belong and handing back
      * what the caller should write to the database.
      */
-    fun read(input: InputStream, photos: PhotoStore): Restored {
+    fun read(input: InputStream, photos: PhotoStore, files: DocumentStore? = null): Restored {
         var json: JSONObject? = null
 
         ZipInputStream(input.buffered()).use { zip ->
@@ -83,11 +119,12 @@ object Backup {
 
                     entry.name.startsWith(PHOTOS_ENTRY) && !entry.isDirectory -> {
                         val name = entry.name.removePrefix(PHOTOS_ENTRY)
-                        // Only ever write inside the photo folder, whatever the
-                        // zip claims a file is called.
-                        if (name.isNotEmpty() && '/' !in name && !name.startsWith("..")) {
-                            photos.write(name, zip.readBytes())
-                        }
+                        if (safe(name)) photos.write(name, zip.readBytes())
+                    }
+
+                    entry.name.startsWith(DOCUMENTS_ENTRY) && !entry.isDirectory -> {
+                        val name = entry.name.removePrefix(DOCUMENTS_ENTRY)
+                        if (safe(name) && files != null) files.write(name, zip.readBytes())
                     }
                 }
                 zip.closeEntry()
@@ -95,12 +132,27 @@ object Backup {
         }
 
         val read = json ?: return Restored(emptyList(), emptyList())
-        return Restored(peopleFrom(read), relationshipsFrom(read))
+        return Restored(
+            people = peopleFrom(read),
+            relationships = relationshipsFrom(read),
+            documents = documentsFrom(read),
+            tags = tagsFrom(read),
+        )
     }
+
+    /**
+     * Only ever write inside the folder we meant, whatever the zip claims a file
+     * is called - a name with a separator or a parent reference in it is how an
+     * archive talks its way into somewhere else on disk.
+     */
+    private fun safe(name: String): Boolean =
+        name.isNotEmpty() && '/' !in name && '\\' !in name && !name.startsWith("..")
 
     data class Restored(
         val people: List<PersonEntity>,
         val relationships: List<RelationshipEntity>,
+        val documents: List<DocumentEntity> = emptyList(),
+        val tags: List<DocumentTagEntity> = emptyList(),
     )
 
     private fun PersonEntity.toJson() = JSONObject()
@@ -168,12 +220,67 @@ object Backup {
         )
     }
 
+    private fun DocumentEntity.toJson() = JSONObject()
+        .put("id", id)
+        .put("fileName", fileName)
+        .put("originalName", originalName)
+        .put("mimeType", mimeType)
+        .put("title", title)
+        .put("notes", notes)
+        .put("dated", dated.store())
+        .put("sizeBytes", sizeBytes)
+        .put("addedAt", addedAt)
+
+    private fun documentFrom(json: JSONObject): DocumentEntity? {
+        val id = json.optString("id").ifEmpty { return null }
+        val fileName = json.optString("fileName").ifEmpty { return null }
+        return DocumentEntity(
+            id = id,
+            fileName = fileName,
+            originalName = json.optString("originalName"),
+            mimeType = json.optString("mimeType"),
+            title = json.optString("title"),
+            notes = json.optString("notes"),
+            dated = FuzzyDate.parse(json.optString("dated")),
+            sizeBytes = json.optLong("sizeBytes"),
+            addedAt = json.optLong("addedAt"),
+        )
+    }
+
+    private fun DocumentTagEntity.toJson() = JSONObject()
+        .put("id", id)
+        .put("documentId", documentId)
+        .put("personId", personId)
+        .put("left", left.toDouble())
+        .put("top", top.toDouble())
+        .put("right", right.toDouble())
+        .put("bottom", bottom.toDouble())
+        .put("note", note)
+
+    private fun tagFrom(json: JSONObject): DocumentTagEntity? {
+        val id = json.optString("id").ifEmpty { return null }
+        val documentId = json.optString("documentId").ifEmpty { return null }
+        val personId = json.optString("personId").ifEmpty { return null }
+        return DocumentTagEntity(
+            id = id,
+            documentId = documentId,
+            personId = personId,
+            left = json.optDouble("left", 0.0).toFloat(),
+            top = json.optDouble("top", 0.0).toFloat(),
+            right = json.optDouble("right", 0.0).toFloat(),
+            bottom = json.optDouble("bottom", 0.0).toFloat(),
+            note = json.optString("note"),
+        )
+    }
+
     private fun JSONArray?.objects(): List<JSONObject> =
         (0 until (this?.length() ?: 0)).mapNotNull { this?.optJSONObject(it) }
 
     private const val KEY_VERSION = "version"
     private const val KEY_PEOPLE = "people"
     private const val KEY_TIES = "relationships"
+    private const val KEY_DOCUMENTS = "documents"
+    private const val KEY_TAGS = "documentTags"
 
     private val DATE = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
 }
