@@ -80,6 +80,12 @@ person, takes their tags with it.
 
 ## The look
 
+The network is drawn as a board of faces: each node is the person's photograph,
+framed in cyan, amber for whoever the view is centred on, with their initials
+standing in where there is no photograph yet. `rememberPortraits` decodes each
+file once at the size a node is actually drawn, so a large network does not pull
+camera-resolution bitmaps into memory to fill a screen of small squares.
+
 Cold and clinical, after *Orwell: Keeping an Eye On You* — a blue-slate ground,
 one cyan that carries everything selectable, amber held back for things wanting
 attention, square corners, and condensed headings over a monospace body. Names

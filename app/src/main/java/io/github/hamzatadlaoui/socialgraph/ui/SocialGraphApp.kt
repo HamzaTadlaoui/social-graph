@@ -161,6 +161,7 @@ fun SocialGraphApp(container: AppContainer) {
                 )
                 GraphScreen(
                     viewModel = viewModel,
+                    photos = container.photos,
                     onOpenPerson = { id -> navController.navigate(Routes.profile(id)) },
                 )
             }

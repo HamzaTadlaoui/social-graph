@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -51,7 +52,11 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
 import io.github.hamzatadlaoui.socialgraph.ui.drawBrackets
+import io.github.hamzatadlaoui.socialgraph.ui.drawPortrait
+import io.github.hamzatadlaoui.socialgraph.ui.initials
+import io.github.hamzatadlaoui.socialgraph.ui.rememberPortraits
 import io.github.hamzatadlaoui.socialgraph.ui.drawGrid
 import io.github.hamzatadlaoui.socialgraph.ui.theme.Mono
 import io.github.hamzatadlaoui.socialgraph.R
@@ -71,6 +76,7 @@ import kotlin.math.min
 @Composable
 fun GraphScreen(
     viewModel: GraphViewModel,
+    photos: PhotoStore,
     onOpenPerson: (String) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -80,6 +86,15 @@ fun GraphScreen(
     var pan by remember { mutableStateOf(Offset.Zero) }
     var selected by remember { mutableStateOf<String?>(null) }
     var filterOpen by remember { mutableStateOf(false) }
+
+    // Faces on the board, as the game does it. Decoded at the size a node is
+    // actually drawn, not at the size the camera took them.
+    val portraitPx = with(LocalDensity.current) { ROOT_NODE.roundToPx() }
+    val portraits = rememberPortraits(
+        photos = photos,
+        fileNames = state.nodes.map { it.person.photo },
+        sizePx = portraitPx,
+    )
 
     val surface = MaterialTheme.colorScheme.surface
     val plateColour = MaterialTheme.colorScheme.surfaceVariant
@@ -158,7 +173,7 @@ fun GraphScreen(
                                     }
                                     ?.takeIf { node ->
                                         val at = node.at.toScreen(centre, radius, scale, pan)
-                                        hypot(tap.x - at.x, tap.y - at.y) < 48.dp.toPx() * scale
+                                        hypot(tap.x - at.x, tap.y - at.y) < ROOT_NODE.toPx() * scale
                                     }
                                     ?.person?.id
                             }
@@ -182,35 +197,65 @@ fun GraphScreen(
                         val at = places[node.person.id] ?: continue
                         val isRoot = node.person.id == state.root?.id
                         val isSelected = node.person.id == selected
-                        val half = (if (isRoot) 9f else 7f) * scale
-                        val marker = Rect(at - Offset(half, half), Size(half * 2f, half * 2f))
+                        val side = (if (isRoot) ROOT_NODE else NODE).toPx() * scale
+                        val half = side / 2f
+                        val frame = Rect(at - Offset(half, half), Size(side, side))
+                        val edge = if (isRoot) rootColour else nodeColour
 
-                        // A square marker, punched out of the edges running under it.
-                        drawRect(surface, marker.inflate(2f * scale).topLeft, marker.inflate(2f * scale).size)
+                        // A backing square first, so an edge running underneath
+                        // does not show through a photograph with transparency.
+                        drawRect(surface, frame.topLeft, frame.size)
+
+                        val face = portraits[node.person.photo]
+                        if (face != null) {
+                            drawPortrait(face, frame.left, frame.top, side)
+                        } else {
+                            // No photograph: their initials, the way the list
+                            // and the dossier show them.
+                            drawRect(plateColour, frame.topLeft, frame.size)
+                            val mark = measurer.measure(
+                                text = initials(node.person.displayName),
+                                style = TextStyle(
+                                    fontFamily = Mono,
+                                    fontSize = 13.sp * scale.coerceIn(0.8f, 1.6f),
+                                    color = edge,
+                                ),
+                                maxLines = 1,
+                            )
+                            drawText(
+                                textLayoutResult = mark,
+                                topLeft = Offset(
+                                    frame.center.x - mark.size.width / 2f,
+                                    frame.center.y - mark.size.height / 2f,
+                                ),
+                            )
+                        }
+
+                        // The frame around the face is what says whose board this
+                        // is: amber for the centre, cyan for everyone else.
                         drawRect(
-                            color = if (isRoot) rootColour else nodeColour,
-                            topLeft = marker.topLeft,
-                            size = marker.size,
+                            color = edge,
+                            topLeft = frame.topLeft,
+                            size = frame.size,
+                            style = Stroke(width = (if (isRoot) 2.5f else 1.5f) * scale),
                         )
-                        // The centre of the network wears a reticle, so it stays
-                        // findable once the drawing has been panned around.
                         if (isRoot) {
-                            drawBrackets(marker, rootColour, 1.5f * scale, gap = 7f * scale)
+                            drawBrackets(frame, rootColour, 2f * scale, gap = 6f * scale)
                         }
 
                         val plate = drawPersonName(
                             measurer = measurer,
                             name = node.person.displayName,
                             at = at,
-                            below = half + 7f * scale,
+                            below = half + 6f * scale,
                             background = plateColour,
-                            border = if (isRoot) rootColour else edgeColour,
+                            border = edge,
                             colour = labelColour,
                             scale = scale,
                         )
                         if (isSelected) {
                             drawBrackets(
-                                Rect(marker.left, marker.top, marker.right, plate.bottom),
+                                Rect(frame.left, frame.top, frame.right, plate.bottom),
                                 nodeColour,
                                 2f * scale,
                                 gap = 5f * scale,
@@ -251,6 +296,10 @@ fun GraphScreen(
         }
     }
 }
+
+/** Big enough for a face to be a face, small enough that a network still reads as one. */
+private val NODE = 44.dp
+private val ROOT_NODE = 56.dp
 
 /** Unit-circle place to a pixel on screen, after the user's pan and zoom. */
 private fun Point.toScreen(centre: Offset, radius: Float, scale: Float, pan: Offset) = Offset(
