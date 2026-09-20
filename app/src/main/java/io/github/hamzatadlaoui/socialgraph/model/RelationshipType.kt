@@ -44,6 +44,21 @@ enum class RelationshipType {
         get() = this == PARENT_OF || this == CHILD_OF || this == SIBLING_OF ||
             this == PARTNER_OF || this == EX_PARTNER_OF
 
+    /**
+     * How much of a "hops" budget one tie of this kind spends when the graph
+     * decides how far out to show. Close family costs the least, so a given
+     * budget reaches further through parents, children, siblings and
+     * partners than it does through a single friend or coworker - the same
+     * number of hops the person set shows a family-first slice of the
+     * network rather than a flat cut at the same distance for everyone.
+     */
+    val closeness: Double
+        get() = when (this) {
+            PARENT_OF, CHILD_OF, SIBLING_OF, PARTNER_OF -> 1.0
+            EX_PARTNER_OF, CUSTOM -> 1.5
+            FRIEND_OF, KNOWS, COWORKER_OF, EMPLOYER_OF, EMPLOYEE_OF, NEIGHBOUR_OF -> 2.0
+        }
+
     companion object {
         fun fromName(name: String?): RelationshipType? = entries.firstOrNull { it.name == name }
     }

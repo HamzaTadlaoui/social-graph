@@ -102,6 +102,7 @@
     <string name="hops">HOPS %1$d</string>
     <string name="open_profile">Open</string>
     <string name="centre_here">Centre here</string>
+    <string name="uncentre">Back to your own view</string>
     <string name="graph_needs_people">Add a few people and the ties between them, and they will show up here.</string>
     <string name="generations">GEN %1$d</string>
     <string name="fewer_generations">Fewer generations</string>

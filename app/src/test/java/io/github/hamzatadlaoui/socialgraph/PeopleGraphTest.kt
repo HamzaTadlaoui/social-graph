@@ -8,6 +8,7 @@ import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.CHILD_OF
 import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.PARENT_OF
 import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.PARTNER_OF
 import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.SIBLING_OF
+import kotlin.math.PI
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -89,6 +90,36 @@ class PeopleGraphTest {
     }
 
     @Test
+    fun `a budget that reaches a step of family does not stretch to a weaker tie`() {
+        val mixed = PeopleGraph(
+            tie("me", "sibling", SIBLING_OF) + tie("me", "acquaintance", RelationshipType.KNOWS),
+        )
+
+        val network = mixed.egoNetwork("me", depth = 1)
+
+        assertTrue("sibling" in network.ids)
+        assertTrue("acquaintance" !in network.ids)
+    }
+
+    @Test
+    fun `the same budget reaches a second step of family but only the first weak tie`() {
+        val mixed = PeopleGraph(
+            tie("me", "child", PARENT_OF) +
+                tie("child", "grandchild", PARENT_OF) +
+                tie("me", "coworker", RelationshipType.COWORKER_OF),
+        )
+
+        val network = mixed.egoNetwork("me", depth = 2)
+
+        assertTrue("grandchild" in network.ids)
+        assertTrue("coworker" in network.ids)
+        // The coworker's own coworker would be a second weak-tie hop, which
+        // this budget already spent reaching the coworker in the first place.
+        assertEquals(2, network.depth["grandchild"])
+        assertEquals(2, network.depth["coworker"])
+    }
+
+    @Test
     fun `finds how two people are connected, by the shortest way round`() {
         val path = graph.shortestPath("me", "sophie")
 
@@ -122,5 +153,46 @@ class PeopleGraphTest {
         val network = graph.egoNetwork("me", depth = 3)
 
         assertEquals(radialLayout(network), radialLayout(network))
+    }
+
+    @Test
+    fun `a crowded ring is pushed further out than a sparse one would sit`() {
+        val busy = PeopleGraph(
+            (1..6).flatMap { tie("me", "friend$it", RelationshipType.FRIEND_OF) } +
+                tie("friend1", "acquaintance", RelationshipType.FRIEND_OF),
+        )
+        val places = radialLayout(busy.egoNetwork("me", depth = 2))
+
+        val ringOneRadius = kotlin.math.hypot(
+            places.getValue("friend2").x,
+            places.getValue("friend2").y,
+        )
+        // Sparsely populated, one hop of two would sit at half the outer
+        // radius, same as in the test above; six people sharing this ring
+        // push it out past that so they have room to be drawn apart.
+        assertTrue(ringOneRadius > 0.5f)
+    }
+
+    @Test
+    fun `a childless sibling is not squeezed out by one with a large family`() {
+        // "busy" has nine further descendants; "quiet" has none, but both
+        // are direct neighbours of "me" and neither is a subtree to size a
+        // wedge by - each is a single box that needs its own fair slice.
+        val skewed = PeopleGraph(
+            tie("me", "busy", RelationshipType.FRIEND_OF) +
+                tie("me", "quiet", RelationshipType.FRIEND_OF) +
+                (1..9).flatMap { tie("busy", "descendant$it", RelationshipType.FRIEND_OF) },
+        )
+        val places = radialLayout(skewed.egoNetwork("me", depth = 2))
+
+        fun angle(id: String): Double =
+            kotlin.math.atan2(places.getValue(id).y.toDouble(), places.getValue(id).x.toDouble())
+        var gap = kotlin.math.abs(angle("busy") - angle("quiet"))
+        if (gap > PI) gap = 2 * PI - gap
+
+        // Ten leaves sharing the circle evenly would average 2*PI/10 apart;
+        // "busy" claims most of the wedge by weight, but "quiet" still keeps
+        // a guaranteed minimum share rather than being squeezed towards zero.
+        assertTrue(gap > PI / 4)
     }
 }

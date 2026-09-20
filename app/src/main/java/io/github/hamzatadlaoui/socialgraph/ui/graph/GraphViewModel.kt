@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** Which ties to draw. Section 5.3 asks for a filter; these are the useful cuts. */
@@ -92,8 +93,18 @@ class GraphViewModel(private val repository: PeopleRepository) : ViewModel() {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GraphState())
 
+    /** True once the person has picked someone other than themselves to centre on. */
+    val isRecentred: StateFlow<Boolean> = chosenRoot
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     fun centreOn(personId: String) {
         chosenRoot.value = personId
+    }
+
+    /** Back to the default view - "me", or the first person, same as on first open. */
+    fun uncentre() {
+        chosenRoot.value = null
     }
 
     fun onDepthChange(value: Int) {

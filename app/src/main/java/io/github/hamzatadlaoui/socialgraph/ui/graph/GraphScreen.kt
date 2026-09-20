@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
 import io.github.hamzatadlaoui.socialgraph.ui.drawBrackets
@@ -62,7 +64,6 @@ import io.github.hamzatadlaoui.socialgraph.ui.theme.Mono
 import io.github.hamzatadlaoui.socialgraph.R
 import io.github.hamzatadlaoui.socialgraph.graph.Point
 import kotlin.math.hypot
-import kotlin.math.min
 
 /**
  * The network as a picture (section 5.3): whoever is at the centre, everyone
@@ -80,6 +81,7 @@ fun GraphScreen(
     onOpenPerson: (String) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val isRecentred by viewModel.isRecentred.collectAsStateWithLifecycle()
     val measurer = rememberTextMeasurer()
 
     var scale by remember { mutableStateOf(1f) }
@@ -109,6 +111,21 @@ fun GraphScreen(
             TopAppBar(
                 title = { Text(state.root?.fullName ?: stringResource(R.string.tab_graph)) },
                 actions = {
+                    // Only worth offering once there is somewhere to go back to -
+                    // on the default view, centred on yourself, there is nothing
+                    // this would undo.
+                    if (isRecentred) {
+                        IconButton(
+                            onClick = {
+                                viewModel.uncentre()
+                                selected = null
+                                scale = 1f
+                                pan = Offset.Zero
+                            },
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.uncentre))
+                        }
+                    }
                     Box {
                         IconButton(onClick = { filterOpen = true }) {
                             Icon(Icons.Default.FilterList, stringResource(R.string.filter_ties))
@@ -164,25 +181,29 @@ fun GraphScreen(
                         }
                         .pointerInput(state.nodes) {
                             detectTapGestures { tap ->
-                                val radius = min(size.width, size.height) / 2f * 0.78f
+                                val radii = size.toSize().ringRadii()
                                 val centre = Offset(size.width / 2f, size.height / 2f)
                                 selected = state.nodes
                                     .minByOrNull { node ->
-                                        val at = node.at.toScreen(centre, radius, scale, pan)
+                                        val at = node.at.toScreen(centre, radii, scale, pan)
                                         hypot(tap.x - at.x, tap.y - at.y)
                                     }
                                     ?.takeIf { node ->
-                                        val at = node.at.toScreen(centre, radius, scale, pan)
+                                        val at = node.at.toScreen(centre, radii, scale, pan)
                                         hypot(tap.x - at.x, tap.y - at.y) < ROOT_NODE.toPx() * scale
                                     }
                                     ?.person?.id
                             }
                         },
                 ) {
-                    val radius = min(size.width, size.height) / 2f * 0.78f
+                    // An ellipse, not a circle: min(width, height) alone would
+                    // size the whole network off the narrower dimension and
+                    // waste most of a tall phone screen's own height. Width and
+                    // height each get to use as much of themselves as they have.
+                    val radii = size.ringRadii()
                     val centre = Offset(size.width / 2f, size.height / 2f)
                     val places = state.nodes.associate {
-                        it.person.id to it.at.toScreen(centre, radius, scale, pan)
+                        it.person.id to it.at.toScreen(centre, radii, scale, pan)
                     }
 
                     drawGrid(gridColour, 24.dp.toPx() * scale, pan)
@@ -301,10 +322,40 @@ fun GraphScreen(
 private val NODE = 44.dp
 private val ROOT_NODE = 56.dp
 
-/** Unit-circle place to a pixel on screen, after the user's pan and zoom. */
-private fun Point.toScreen(centre: Offset, radius: Float, scale: Float, pan: Offset) = Offset(
-    x = centre.x + x * radius * scale + pan.x,
-    y = centre.y + y * radius * scale + pan.y,
+/**
+ * How much further apart two rings sit than a plain "fit the outermost ring
+ * to the screen" layout would put them - the gap the game this is drawn
+ * after uses between two adjacent portraits runs to four or five times a
+ * portrait's own size, not the one-and-a-bit a plain fit gives here. This
+ * widens the gap alone: it multiplies where a node sits, not how big it or
+ * its label is drawn, so spacing the faces out further does not also blow
+ * the faces themselves up past their normal size - that is what pinching to
+ * zoom is for, and it stays a choice rather than something this makes for
+ * the person before they have touched the screen. Getting near that gap on
+ * a hop-3 network only fits by not trying to fit the whole ring on screen at
+ * once: the close ties stay generously spaced and legible at their normal
+ * size, and reaching a further one is a pan away rather than a squint.
+ */
+private const val SPACING_BOOST = 2.3f
+
+/** How far the outermost ring sits from the centre, along each axis separately. */
+private data class Radii(val x: Float, val y: Float)
+
+/**
+ * Width and height each get their own radius, sized off their own extent -
+ * not off whichever of the two is smaller, which on a phone screen taller
+ * than it is wide meant the network was always sized as if the screen were
+ * square, and everything below the width-sized circle sat empty.
+ */
+private fun Size.ringRadii() = Radii(
+    x = width / 2f * 0.88f * SPACING_BOOST,
+    y = height / 2f * 0.88f * SPACING_BOOST,
+)
+
+/** Unit-ellipse place to a pixel on screen, after the user's pan and zoom. */
+private fun Point.toScreen(centre: Offset, radii: Radii, scale: Float, pan: Offset) = Offset(
+    x = centre.x + x * radii.x * scale + pan.x,
+    y = centre.y + y * radii.y * scale + pan.y,
 )
 
 /**
