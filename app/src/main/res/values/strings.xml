@@ -104,6 +104,9 @@
     <string name="centre_here">Centre here</string>
     <string name="graph_needs_people">Add a few people and the ties between them, and they will show up here.</string>
     <string name="generations">GEN %1$d</string>
+    <string name="fewer_generations">Fewer generations</string>
+    <string name="more_generations">More generations</string>
+    <string name="show_photos">Photos</string>
     <string name="tree_from_here">Tree from here</string>
     <string name="family_needs_people">Record who someone\'s parents, partner or children are, and the tree draws itself.</string>
 

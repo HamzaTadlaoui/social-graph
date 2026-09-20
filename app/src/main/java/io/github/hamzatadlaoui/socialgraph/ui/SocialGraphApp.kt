@@ -174,6 +174,7 @@ fun SocialGraphApp(container: AppContainer) {
                 )
                 FamilyScreen(
                     viewModel = viewModel,
+                    photos = container.photos,
                     onOpenPerson = { id -> navController.navigate(Routes.profile(id)) },
                 )
             }
