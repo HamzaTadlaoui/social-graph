@@ -16,6 +16,8 @@
     <string name="cancel">Cancel</string>
     <string name="delete">Delete</string>
     <string name="back">Back</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
 
     <string name="field_name">Name</string>
     <string name="field_last_name">Last name</string>
@@ -34,12 +36,20 @@
     <string name="born_on">Born %1$s</string>
     <string name="add_relationship">Add relationship</string>
     <string name="remove_relationship">Remove relationship</string>
+    <string name="make_official">Make official</string>
     <string name="no_relationships_yet">No relationships recorded yet.</string>
     <string name="relationship_subject">%1$s…</string>
     <string name="relationship_kind">Relationship</string>
     <string name="relationship_label">What to call it</string>
     <string name="which_person">Search or type a new name</string>
     <string name="create_and_link">Create “%1$s” and link them</string>
+    <string name="follow_up_title">Also worth recording?</string>
+    <string name="follow_up_child_of_partner">Is %1$s also %2$s\'s child?</string>
+    <string name="follow_up_partner_parent_of">Is %1$s also a parent of %2$s?</string>
+    <string name="follow_up_parent_of_sibling">Is %1$s also %2$s\'s parent?</string>
+    <string name="confirm_partners_child">Is %1$s also your child?</string>
+    <string name="confirm_parents_partner">Is %1$s also your parent?</string>
+    <string name="confirm_sibling">Is %1$s also your sibling?</string>
 
     <!-- Headings on a person's page: the far end of each tie. -->
     <string name="section_parents">Parents</string>
@@ -154,6 +164,10 @@
     <string name="kin_sibling_in_law">Sibling-in-law</string>
     <string name="kin_parents_partner">Parent\'s partner</string>
     <string name="kin_partners_child">Partner\'s child</string>
+    <string name="kin_great_aunt_or_uncle">Great-aunt or great-uncle</string>
+    <string name="kin_great_niece_or_nephew">Great-niece or great-nephew</string>
+    <string name="kin_step_sibling">Step-sibling</string>
+    <string name="kin_siblings_parent">Sibling\'s parent</string>
 
     <plurals name="tagged_count">
         <item quantity="one">%1$d person tagged</item>

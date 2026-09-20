@@ -124,6 +124,62 @@ class KinshipTest {
     }
 
     @Test
+    fun `a grandparent's sibling is a great-aunt or great-uncle`() {
+        val graph = PeopleGraph(
+            tie("ada", "david", PARENT_OF) +
+                tie("david", "alex", PARENT_OF) +
+                tie("ada", "marie", SIBLING_OF),
+        )
+
+        assertEquals(Kinship.GREAT_AUNT_OR_UNCLE, kinOf(graph, "alex", "marie"))
+        assertEquals(Kinship.GREAT_NIECE_OR_NEPHEW, kinOf(graph, "marie", "alex"))
+    }
+
+    @Test
+    fun `a step-parent's other child is a step-sibling, not a blood sibling`() {
+        val graph = PeopleGraph(
+            tie("david", "alex", PARENT_OF) +
+                tie("david", "jo", PARTNER_OF) +
+                tie("jo", "sam", PARENT_OF),
+        )
+
+        assertEquals(Kinship.STEP_SIBLING, kinOf(graph, "alex", "sam"))
+    }
+
+    @Test
+    fun `a step-parent's child who is also a blood child is a sibling, not a step-sibling`() {
+        val graph = PeopleGraph(
+            tie("david", "alex", PARENT_OF) +
+                tie("david", "jo", PARTNER_OF) +
+                tie("jo", "sam", PARENT_OF) +
+                tie("david", "sam", PARENT_OF),
+        )
+
+        assertEquals(Kinship.SIBLING, kinOf(graph, "alex", "sam"))
+    }
+
+    @Test
+    fun `a sibling's parent, recorded through the sibling tie alone, is offered as one's own`() {
+        val graph = PeopleGraph(
+            tie("alex", "sam", SIBLING_OF) +
+                tie("david", "sam", PARENT_OF),
+        )
+
+        assertEquals(Kinship.SIBLINGS_PARENT, kinOf(graph, "alex", "david"))
+    }
+
+    @Test
+    fun `a sibling's parent already recorded as one's own is not repeated back`() {
+        val graph = PeopleGraph(
+            tie("alex", "sam", SIBLING_OF) +
+                tie("david", "sam", PARENT_OF) +
+                tie("david", "alex", PARENT_OF),
+        )
+
+        assertTrue(impliedKin(graph, "alex").none { it.personId == "david" })
+    }
+
+    @Test
     fun `a parent's partner who is not a parent is named as exactly that`() {
         val graph = PeopleGraph(
             tie("david", "alex", PARENT_OF) + tie("david", "jo", PARTNER_OF),

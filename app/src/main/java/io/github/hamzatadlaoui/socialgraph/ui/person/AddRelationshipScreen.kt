@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,6 +57,7 @@ fun AddRelationshipScreen(
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val matches by viewModel.matches.collectAsStateWithLifecycle()
+    val pendingPrompts by viewModel.pendingPrompts.collectAsStateWithLifecycle()
     var expanded by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -164,4 +167,33 @@ fun AddRelationshipScreen(
             }
         }
     }
+
+    val prompt = pendingPrompts.firstOrNull()
+    if (prompt != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.declinePrompt(prompt) },
+            title = { Text(stringResource(R.string.follow_up_title)) },
+            text = { Text(followUpQuestion(prompt)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmPrompt(prompt) }) {
+                    Text(stringResource(R.string.yes))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.declinePrompt(prompt) }) {
+                    Text(stringResource(R.string.no))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun followUpQuestion(prompt: FollowUpPrompt): String = when (prompt.kind) {
+    FollowUpKind.CHILD_OF_PARTNER ->
+        stringResource(R.string.follow_up_child_of_partner, prompt.newPersonName, prompt.candidateName)
+    FollowUpKind.PARTNER_PARENT_OF ->
+        stringResource(R.string.follow_up_partner_parent_of, prompt.newPersonName, prompt.candidateName)
+    FollowUpKind.PARENT_OF_SIBLING ->
+        stringResource(R.string.follow_up_parent_of_sibling, prompt.candidateName, prompt.newPersonName)
 }

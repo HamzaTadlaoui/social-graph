@@ -18,12 +18,16 @@ enum class Kinship {
     GREAT_GRANDCHILD,
     AUNT_OR_UNCLE,
     NIECE_OR_NEPHEW,
+    GREAT_AUNT_OR_UNCLE,
+    GREAT_NIECE_OR_NEPHEW,
     COUSIN,
     PARENT_IN_LAW,
     CHILD_IN_LAW,
     SIBLING_IN_LAW,
     PARENTS_PARTNER,
     PARTNERS_CHILD,
+    STEP_SIBLING,
+    SIBLINGS_PARENT,
 }
 
 /**
@@ -86,6 +90,11 @@ fun impliedKin(graph: PeopleGraph, personId: String): List<Implied> {
             for (great in graph.parentsOf(grandparent)) {
                 offer(great, Kinship.GREAT_GRANDPARENT, grandparent)
             }
+            // A grandparent's sibling, one generation further out than an
+            // aunt or uncle.
+            for (greatAuntOrUncle in graph.siblingLike(grandparent)) {
+                offer(greatAuntOrUncle, Kinship.GREAT_AUNT_OR_UNCLE, grandparent)
+            }
         }
     }
     for (child in children) {
@@ -110,6 +119,10 @@ fun impliedKin(graph: PeopleGraph, personId: String): List<Implied> {
     for (sibling in siblings.distinct()) {
         for (niblingId in graph.childrenOf(sibling)) {
             offer(niblingId, Kinship.NIECE_OR_NEPHEW, sibling)
+            // One generation further out: a nibling's child.
+            for (greatNiblingId in graph.childrenOf(niblingId)) {
+                offer(greatNiblingId, Kinship.GREAT_NIECE_OR_NEPHEW, niblingId)
+            }
         }
     }
 
@@ -139,6 +152,33 @@ fun impliedKin(graph: PeopleGraph, personId: String): List<Implied> {
             if (theirPartner !in parents) {
                 offer(theirPartner, Kinship.PARENTS_PARTNER, parent)
             }
+        }
+    }
+
+    // Step-siblings: another child of a parent's partner, who is not already
+    // a blood sibling. Named for the peer relationship, not restated as "the
+    // step-parent's child" - that reading belongs to the partner side, not
+    // theirs. Kept last so it never outranks a closer blood-sibling reading
+    // already offered above.
+    for (parent in parents) {
+        for (theirPartner in graph.partnersOf(parent)) {
+            if (theirPartner in parents) continue
+            for (theirChild in graph.childrenOf(theirPartner)) {
+                if (theirChild == personId) continue
+                if (theirChild in siblings) continue
+                offer(theirChild, Kinship.STEP_SIBLING, theirPartner)
+            }
+        }
+    }
+
+    // A sibling's parent, when not also recorded as one's own - the mirror of
+    // a partner's child, but through an explicitly recorded sibling instead
+    // of a partner. A sibling sharing a recorded parent already puts that
+    // parent in `direct` for both sides, so this only ever fires for a
+    // sibling tie recorded on its own.
+    for (sibling in graph.siblingsOf(personId)) {
+        for (theirParent in graph.parentsOf(sibling)) {
+            offer(theirParent, Kinship.SIBLINGS_PARENT, sibling)
         }
     }
 

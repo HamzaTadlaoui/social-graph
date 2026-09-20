@@ -10,6 +10,7 @@ import io.github.hamzatadlaoui.socialgraph.graph.PeopleGraph
 import io.github.hamzatadlaoui.socialgraph.graph.impliedKin
 import io.github.hamzatadlaoui.socialgraph.data.PersonEntity
 import io.github.hamzatadlaoui.socialgraph.data.RelationshipEntity
+import io.github.hamzatadlaoui.socialgraph.model.RelationshipType
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -62,5 +63,28 @@ class PersonProfileViewModel(
 
     fun unlink(tie: Tie) {
         viewModelScope.launch { repository.unlink(tie.relationship) }
+    }
+
+    /**
+     * Turns a worked-out tie into a recorded one. A parent's partner, a
+     * partner's child, and a sibling's parent are each one confirmation away
+     * from being a real parent, not a label standing in for one; a sibling
+     * worked out through a shared parent is one confirmation away from being
+     * a real sibling tie in its own right. Everything else is recorded under
+     * the name it was shown as, since the app has no built-in type for it.
+     */
+    fun confirmImplied(tie: ImpliedTie, label: String) {
+        viewModelScope.launch {
+            when (tie.kinship) {
+                Kinship.PARENTS_PARTNER, Kinship.SIBLINGS_PARENT ->
+                    repository.link(tie.other.id, personId, RelationshipType.PARENT_OF)
+                Kinship.PARTNERS_CHILD ->
+                    repository.link(personId, tie.other.id, RelationshipType.PARENT_OF)
+                Kinship.SIBLING, Kinship.HALF_SIBLING ->
+                    repository.link(personId, tie.other.id, RelationshipType.SIBLING_OF)
+                else ->
+                    repository.link(personId, tie.other.id, RelationshipType.CUSTOM, label)
+            }
+        }
     }
 }

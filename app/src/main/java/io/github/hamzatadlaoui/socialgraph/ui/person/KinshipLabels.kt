@@ -20,10 +20,14 @@ fun Kinship.label(): Int = when (this) {
     Kinship.GREAT_GRANDCHILD -> R.string.kin_great_grandchild
     Kinship.AUNT_OR_UNCLE -> R.string.kin_aunt_or_uncle
     Kinship.NIECE_OR_NEPHEW -> R.string.kin_niece_or_nephew
+    Kinship.GREAT_AUNT_OR_UNCLE -> R.string.kin_great_aunt_or_uncle
+    Kinship.GREAT_NIECE_OR_NEPHEW -> R.string.kin_great_niece_or_nephew
     Kinship.COUSIN -> R.string.kin_cousin
     Kinship.PARENT_IN_LAW -> R.string.kin_parent_in_law
     Kinship.CHILD_IN_LAW -> R.string.kin_child_in_law
     Kinship.SIBLING_IN_LAW -> R.string.kin_sibling_in_law
     Kinship.PARENTS_PARTNER -> R.string.kin_parents_partner
     Kinship.PARTNERS_CHILD -> R.string.kin_partners_child
+    Kinship.STEP_SIBLING -> R.string.kin_step_sibling
+    Kinship.SIBLINGS_PARENT -> R.string.kin_siblings_parent
 }

@@ -66,5 +66,6 @@ dependencies {
     // The real org.json, so the backup format can be tested off-device -
     // the same trick :app uses for its page files.
     testImplementation(libs.json)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
 }
