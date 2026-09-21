@@ -24,6 +24,8 @@ data class PersonEntity(
     val birth: FuzzyDate = FuzzyDate.Unknown,
     val death: FuzzyDate = FuzzyDate.Unknown,
     val pronouns: String = "",
+    val address: String = "",
+    val occupation: String = "",
     /** Marks the one person the app calls "you", for "how do I know them?". */
     val isMe: Boolean = false,
     val isFavourite: Boolean = false,

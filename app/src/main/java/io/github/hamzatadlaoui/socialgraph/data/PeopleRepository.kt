@@ -91,6 +91,57 @@ interface PeopleRepository {
     suspend fun documentSnapshot(): Pair<List<DocumentEntity>, List<DocumentTagEntity>>
 
     suspend fun restoreDocuments(documents: List<DocumentEntity>, tags: List<DocumentTagEntity>)
+
+    // Short categorised facts about a person - section 4.3, and the closest
+    // thing this app has to Orwell's own per-category profile lists.
+
+    fun factsOf(personId: String): Flow<List<FactEntity>>
+
+    suspend fun saveFact(fact: FactEntity): FactEntity
+
+    suspend fun deleteFact(id: String)
+
+    suspend fun factSnapshot(): List<FactEntity>
+
+    suspend fun restoreFacts(facts: List<FactEntity>)
+
+    // Events: a real occasion, fed onto a person's profile the same way a
+    // tie is - see EventEntity.
+
+    fun events(): Flow<List<EventEntity>>
+
+    fun searchEvents(term: String): Flow<List<EventEntity>>
+
+    fun event(id: String): Flow<EventEntity?>
+
+    fun attendeesOn(eventId: String): Flow<List<EventAttendeeEntity>>
+
+    /** The other direction: every event this person was marked present at. */
+    fun eventsOf(personId: String): Flow<List<EventEntity>>
+
+    fun photosOn(eventId: String): Flow<List<EventPhotoEntity>>
+
+    suspend fun findEvent(id: String): EventEntity?
+
+    suspend fun saveEvent(event: EventEntity): EventEntity
+
+    suspend fun deleteEvent(event: EventEntity)
+
+    suspend fun attend(attendee: EventAttendeeEntity)
+
+    suspend fun unattend(attendeeId: String)
+
+    suspend fun addEventPhoto(photo: EventPhotoEntity)
+
+    suspend fun removeEventPhoto(photoId: String)
+
+    suspend fun eventSnapshot(): Triple<List<EventEntity>, List<EventAttendeeEntity>, List<EventPhotoEntity>>
+
+    suspend fun restoreEvents(
+        events: List<EventEntity>,
+        attendees: List<EventAttendeeEntity>,
+        photos: List<EventPhotoEntity>,
+    )
 }
 
 class RoomPeopleRepository(
@@ -101,6 +152,8 @@ class RoomPeopleRepository(
     private val people = db.people()
     private val relationships = db.relationships()
     private val documents = db.documents()
+    private val facts = db.facts()
+    private val events = db.events()
 
     override fun people(): Flow<List<PersonEntity>> = people.all()
 
@@ -228,6 +281,85 @@ class RoomPeopleRepository(
             this@RoomPeopleRepository.documents.upsertTags(
                 tags.filter { it.documentId in files && it.personId in known },
             )
+        }
+    }
+
+    override fun factsOf(personId: String): Flow<List<FactEntity>> = facts.factsOf(personId)
+
+    override suspend fun saveFact(fact: FactEntity): FactEntity {
+        val stamped = fact.copy(createdAt = if (fact.createdAt == 0L) now() else fact.createdAt)
+        facts.upsert(stamped)
+        return stamped
+    }
+
+    override suspend fun deleteFact(id: String) = facts.delete(id)
+
+    override suspend fun factSnapshot(): List<FactEntity> = facts.snapshot()
+
+    override suspend fun restoreFacts(facts: List<FactEntity>) {
+        db.withTransaction {
+            // A fact needs its person to exist, the same as a tie or a tag does.
+            val known = people.snapshot().map { it.id }.toSet()
+            this@RoomPeopleRepository.facts.upsertAll(facts.filter { it.personId in known })
+        }
+    }
+
+    override fun events(): Flow<List<EventEntity>> = events.all()
+
+    override fun searchEvents(term: String): Flow<List<EventEntity>> =
+        if (term.isBlank()) events.all() else events.search(term.trim())
+
+    override fun event(id: String): Flow<EventEntity?> = events.byId(id)
+
+    override fun attendeesOn(eventId: String): Flow<List<EventAttendeeEntity>> =
+        events.attendeesOn(eventId)
+
+    override fun eventsOf(personId: String): Flow<List<EventEntity>> = events.eventsOf(personId)
+
+    override fun photosOn(eventId: String): Flow<List<EventPhotoEntity>> = events.photosOn(eventId)
+
+    override suspend fun findEvent(id: String): EventEntity? = events.find(id)
+
+    override suspend fun saveEvent(event: EventEntity): EventEntity {
+        val stamped = event.copy(addedAt = if (event.addedAt == 0L) now() else event.addedAt)
+        events.upsert(stamped)
+        return stamped
+    }
+
+    override suspend fun deleteEvent(event: EventEntity) = events.delete(event)
+
+    override suspend fun attend(attendee: EventAttendeeEntity) = events.upsertAttendee(attendee)
+
+    override suspend fun unattend(attendeeId: String) = events.deleteAttendee(attendeeId)
+
+    override suspend fun addEventPhoto(photo: EventPhotoEntity) {
+        val stamped = photo.copy(addedAt = if (photo.addedAt == 0L) now() else photo.addedAt)
+        events.upsertPhoto(stamped)
+    }
+
+    override suspend fun removeEventPhoto(photoId: String) = events.deletePhoto(photoId)
+
+    override suspend fun eventSnapshot():
+        Triple<List<EventEntity>, List<EventAttendeeEntity>, List<EventPhotoEntity>> =
+        db.withTransaction {
+            Triple(events.snapshot(), events.attendeeSnapshot(), events.photoSnapshot())
+        }
+
+    override suspend fun restoreEvents(
+        events: List<EventEntity>,
+        attendees: List<EventAttendeeEntity>,
+        photos: List<EventPhotoEntity>,
+    ) {
+        db.withTransaction {
+            this@RoomPeopleRepository.events.upsertAll(events)
+            // An attendee or a photo needs its event to exist, the same as a
+            // tag needs its document to; an attendee also needs its person.
+            val known = this@RoomPeopleRepository.events.snapshot().map { it.id }.toSet()
+            val people = people.snapshot().map { it.id }.toSet()
+            this@RoomPeopleRepository.events.upsertAttendees(
+                attendees.filter { it.eventId in known && it.personId in people },
+            )
+            this@RoomPeopleRepository.events.upsertPhotos(photos.filter { it.eventId in known })
         }
     }
 }

@@ -2,6 +2,9 @@ package io.github.hamzatadlaoui.socialgraph
 
 import io.github.hamzatadlaoui.socialgraph.data.DocumentEntity
 import io.github.hamzatadlaoui.socialgraph.data.DocumentTagEntity
+import io.github.hamzatadlaoui.socialgraph.data.EventAttendeeEntity
+import io.github.hamzatadlaoui.socialgraph.data.EventEntity
+import io.github.hamzatadlaoui.socialgraph.data.FactEntity
 import io.github.hamzatadlaoui.socialgraph.data.PersonEntity
 import io.github.hamzatadlaoui.socialgraph.data.RelationshipEntity
 import io.github.hamzatadlaoui.socialgraph.export.Backup
@@ -24,6 +27,8 @@ class BackupTest {
         notes = "Met at university.",
         birth = FuzzyDate(1982, approximate = true),
         pronouns = "she/her",
+        address = "22 Rue de Lyon",
+        occupation = "Architect",
         isMe = false,
         isFavourite = true,
         createdAt = 1_700_000_000_000,
@@ -157,8 +162,93 @@ class BackupTest {
     }
 
     @Test
-    fun `the format version says two, now that documents are in it`() {
-        assertEquals(2, Backup.VERSION)
+    fun `facts survive the round trip`() {
+        val fact = FactEntity(
+            id = "fact-1",
+            personId = "claire",
+            category = "background",
+            text = "started working at the university in March",
+            createdAt = 1_700_000_003_000,
+        )
+
+        val json = Backup.toJson(
+            people = listOf(claire),
+            relationships = emptyList(),
+            facts = listOf(fact),
+        )
+        val read = JSONObject(json.toString())
+
+        assertEquals(listOf(fact), Backup.factsFrom(read))
+    }
+
+    @Test
+    fun `a version two backup still restores, it simply has no facts`() {
+        // Exactly what the previous release wrote: documents, but no facts key.
+        val old = JSONObject(
+            """
+            {
+              "version": 2,
+              "people": [{ "id": "ada", "displayName": "Ada" }],
+              "relationships": [],
+              "documents": [],
+              "documentTags": []
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(1, Backup.peopleFrom(old).size)
+        assertTrue(Backup.factsFrom(old).isEmpty())
+    }
+
+    @Test
+    fun `events and their attendees survive the round trip`() {
+        val party = EventEntity(
+            id = "event-1",
+            title = "Marc's fortieth",
+            date = FuzzyDate(2024, 6, 12),
+            location = "Lyon",
+            description = "Back garden, evening.",
+            addedAt = 1_700_000_004_000,
+        )
+        val attendee = EventAttendeeEntity(id = "attendee-1", eventId = "event-1", personId = "claire")
+
+        val json = Backup.toJson(
+            people = listOf(claire, marc),
+            relationships = listOf(married),
+            events = listOf(party),
+            attendees = listOf(attendee),
+        )
+        val read = JSONObject(json.toString())
+
+        assertEquals(listOf(party), Backup.eventsFrom(read))
+        assertEquals(listOf(attendee), Backup.attendeesFrom(read))
+    }
+
+    @Test
+    fun `a version three backup still restores, it simply has no events`() {
+        // Exactly what the previous release wrote: facts, but no events key.
+        val old = JSONObject(
+            """
+            {
+              "version": 3,
+              "people": [{ "id": "ada", "displayName": "Ada" }],
+              "relationships": [],
+              "documents": [],
+              "documentTags": [],
+              "facts": []
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(1, Backup.peopleFrom(old).size)
+        assertTrue(Backup.eventsFrom(old).isEmpty())
+        assertTrue(Backup.attendeesFrom(old).isEmpty())
+        assertTrue(Backup.eventPhotosFrom(old).isEmpty())
+    }
+
+    @Test
+    fun `the format version says four, now that events are in it`() {
+        assertEquals(4, Backup.VERSION)
     }
 
     @Test

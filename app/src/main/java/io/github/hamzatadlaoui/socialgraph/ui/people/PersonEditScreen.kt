@@ -157,6 +157,22 @@ fun PersonEditScreen(
                 label = R.string.field_born,
                 supporting = R.string.field_born_hint,
             )
+            Field(
+                value = form.died,
+                onValueChange = { text -> viewModel.update { it.copy(died = text) } },
+                label = R.string.field_died,
+                supporting = R.string.field_born_hint,
+            )
+            Field(
+                value = form.address,
+                onValueChange = { text -> viewModel.update { it.copy(address = text) } },
+                label = R.string.field_address,
+            )
+            Field(
+                value = form.occupation,
+                onValueChange = { text -> viewModel.update { it.copy(occupation = text) } },
+                label = R.string.field_occupation,
+            )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),

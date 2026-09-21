@@ -46,6 +46,25 @@ class PhotoStore(context: Context) {
     }
 
     /**
+     * Crops [tag]'s region out of the picture at [source] and saves the
+     * result as a new photo, handing back its name the way [save] does. This
+     * is the one moment a crop is written to disk: the tag itself stays a
+     * rectangle, so re-tagging never leaves a stale copy behind. A tag with
+     * no region of its own ([DocumentTagEntity.whole]) copies the whole
+     * picture in instead - see [previewCrop].
+     */
+    fun cropFrom(source: File, tag: DocumentTagEntity): String? {
+        val full = runCatching { BitmapFactory.decodeFile(source.path) }.getOrNull() ?: return null
+        val cropped = previewCrop(full, tag)
+        root.mkdirs()
+        val name = "${UUID.randomUUID()}.jpg"
+        return runCatching {
+            File(root, name).outputStream().use { cropped.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+            name
+        }.getOrNull()
+    }
+
+    /**
      * Decodes a photo down to roughly [size] pixels on its shortest side, which
      * is all a thumbnail or an avatar ever needs and keeps whole albums out of
      * memory at once.
@@ -63,7 +82,22 @@ class PhotoStore(context: Context) {
         return runCatching { BitmapFactory.decodeFile(file.path, options) }.getOrNull()
     }
 
-    private companion object {
-        const val PHOTOS = "photos"
+    companion object {
+        private const val PHOTOS = "photos"
+
+        /**
+         * The part of [bitmap] that [tag] marks out, or the whole bitmap when
+         * the tag has no region of its own. Shared by [cropFrom], which saves
+         * this to disk, and by a photo picker's live preview, so a preview
+         * never promises a crop that saving would not actually produce.
+         */
+        fun previewCrop(bitmap: Bitmap, tag: DocumentTagEntity): Bitmap {
+            if (tag.whole) return bitmap
+            val x = (tag.left * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
+            val y = (tag.top * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
+            val w = ((tag.right - tag.left) * bitmap.width).toInt().coerceIn(1, bitmap.width - x)
+            val h = ((tag.bottom - tag.top) * bitmap.height).toInt().coerceIn(1, bitmap.height - y)
+            return Bitmap.createBitmap(bitmap, x, y, w, h)
+        }
     }
 }

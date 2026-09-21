@@ -3,6 +3,7 @@ package io.github.hamzatadlaoui.socialgraph.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Hub
@@ -38,6 +39,10 @@ import io.github.hamzatadlaoui.socialgraph.ui.documents.DocumentScreen
 import io.github.hamzatadlaoui.socialgraph.ui.documents.DocumentViewModel
 import io.github.hamzatadlaoui.socialgraph.ui.documents.DocumentsScreen
 import io.github.hamzatadlaoui.socialgraph.ui.documents.DocumentsViewModel
+import io.github.hamzatadlaoui.socialgraph.ui.events.EventScreen
+import io.github.hamzatadlaoui.socialgraph.ui.events.EventViewModel
+import io.github.hamzatadlaoui.socialgraph.ui.events.EventsScreen
+import io.github.hamzatadlaoui.socialgraph.ui.events.EventsViewModel
 import io.github.hamzatadlaoui.socialgraph.ui.family.FamilyScreen
 import io.github.hamzatadlaoui.socialgraph.ui.family.FamilyViewModel
 import io.github.hamzatadlaoui.socialgraph.ui.graph.GraphScreen
@@ -58,6 +63,9 @@ private object Routes {
     const val GRAPH = "graph"
     const val FAMILY = "family"
     const val FILES = "files"
+    const val EVENTS = "events"
+    const val EVENT = "event"
+    const val EVENT_ID = "eventId"
     const val DOCUMENT = "document"
     const val DOCUMENT_ID = "documentId"
     const val EDIT = "edit"
@@ -74,6 +82,8 @@ private object Routes {
     fun addTie(personId: String) = "$ADD_TIE/$personId"
 
     fun document(documentId: String) = "$DOCUMENT/$documentId"
+
+    fun event(eventId: String) = "$EVENT/$eventId"
 }
 
 private data class Tab(val route: String, val label: Int, val icon: ImageVector)
@@ -82,6 +92,7 @@ private val tabs = listOf(
     Tab(Routes.PEOPLE, R.string.tab_people, Icons.Default.Group),
     Tab(Routes.GRAPH, R.string.tab_graph, Icons.Default.Hub),
     Tab(Routes.FAMILY, R.string.tab_family, Icons.Default.AccountTree),
+    Tab(Routes.EVENTS, R.string.tab_events, Icons.Default.Event),
     Tab(Routes.FILES, R.string.tab_files, Icons.Default.Folder),
 )
 
@@ -219,6 +230,37 @@ fun SocialGraphApp(container: AppContainer) {
                 )
             }
 
+            composable(Routes.EVENTS) {
+                val viewModel: EventsViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { EventsViewModel(container.repository) }
+                    },
+                )
+                EventsScreen(
+                    viewModel = viewModel,
+                    onOpenEvent = { id -> navController.navigate(Routes.event(id)) },
+                )
+            }
+
+            composable(
+                route = "${Routes.EVENT}/{${Routes.EVENT_ID}}",
+                arguments = listOf(navArgument(Routes.EVENT_ID) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString(Routes.EVENT_ID).orEmpty()
+                val viewModel: EventViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { EventViewModel(container.repository, eventId, container.photos) }
+                    },
+                )
+                EventScreen(
+                    viewModel = viewModel,
+                    photos = container.photos,
+                    onOpenPerson = { id -> navController.navigate(Routes.profile(id)) },
+                    onDeleted = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
             composable(
                 route = "${Routes.EDIT}?${Routes.PERSON_ID}={${Routes.PERSON_ID}}",
                 arguments = listOf(
@@ -266,7 +308,23 @@ fun SocialGraphApp(container: AppContainer) {
                 val personId = backStackEntry.arguments?.getString(Routes.PERSON_ID).orEmpty()
                 val viewModel: PersonProfileViewModel = viewModel(
                     factory = viewModelFactory {
-                        initializer { PersonProfileViewModel(container.repository, personId) }
+                        initializer {
+                            PersonProfileViewModel(
+                                container.repository,
+                                personId,
+                                container.photos,
+                                container.documents,
+                            )
+                        }
+                    },
+                )
+                // Only needed for its createDraft - the profile's own "Add
+                // event" button starts an event the same way the Events
+                // tab's own FAB does, just with this person marked present
+                // from the start.
+                val eventsViewModel: EventsViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { EventsViewModel(container.repository) }
                     },
                 )
                 PersonProfileScreen(
@@ -278,6 +336,12 @@ fun SocialGraphApp(container: AppContainer) {
                     onAddRelationship = { navController.navigate(Routes.addTie(personId)) },
                     // Walking to a neighbour keeps the trail, so Back retraces it.
                     onOpenPerson = { other -> navController.navigate(Routes.profile(other)) },
+                    onOpenEvent = { id -> navController.navigate(Routes.event(id)) },
+                    onAddEvent = {
+                        eventsViewModel.createDraft(attendeeId = personId) { created ->
+                            navController.navigate(Routes.event(created.id))
+                        }
+                    },
                     onBack = { navController.popBackStack() },
                 )
             }

@@ -3,6 +3,10 @@ package io.github.hamzatadlaoui.socialgraph.export
 import io.github.hamzatadlaoui.socialgraph.data.DocumentEntity
 import io.github.hamzatadlaoui.socialgraph.data.DocumentStore
 import io.github.hamzatadlaoui.socialgraph.data.DocumentTagEntity
+import io.github.hamzatadlaoui.socialgraph.data.EventAttendeeEntity
+import io.github.hamzatadlaoui.socialgraph.data.EventEntity
+import io.github.hamzatadlaoui.socialgraph.data.EventPhotoEntity
+import io.github.hamzatadlaoui.socialgraph.data.FactEntity
 import io.github.hamzatadlaoui.socialgraph.data.PersonEntity
 import io.github.hamzatadlaoui.socialgraph.data.PhotoStore
 import io.github.hamzatadlaoui.socialgraph.data.RelationshipEntity
@@ -26,13 +30,14 @@ import java.util.zip.ZipOutputStream
  * documented): a backup should still be readable in ten years by something
  * that is not this app.
  *
- * Version 2 added `documents` and `documentTags`. A version 1 file simply has
- * neither, and still restores - which is why every reader here is written to
- * find nothing rather than to fail.
+ * Version 2 added `documents` and `documentTags`. Version 3 added `facts`.
+ * Version 4 added `events`, `eventAttendees` and `eventPhotos`. A file from
+ * an earlier version simply has none of these, and still restores - which
+ * is why every reader here is written to find nothing rather than to fail.
  */
 object Backup {
 
-    const val VERSION = 2
+    const val VERSION = 4
     const val JSON_ENTRY = "backup.json"
     const val PHOTOS_ENTRY = "photos/"
     const val DOCUMENTS_ENTRY = "documents/"
@@ -45,12 +50,20 @@ object Backup {
         relationships: List<RelationshipEntity>,
         documents: List<DocumentEntity> = emptyList(),
         tags: List<DocumentTagEntity> = emptyList(),
+        facts: List<FactEntity> = emptyList(),
+        events: List<EventEntity> = emptyList(),
+        attendees: List<EventAttendeeEntity> = emptyList(),
+        eventPhotos: List<EventPhotoEntity> = emptyList(),
     ): JSONObject = JSONObject()
         .put(KEY_VERSION, VERSION)
         .put(KEY_PEOPLE, JSONArray().apply { people.forEach { put(it.toJson()) } })
         .put(KEY_TIES, JSONArray().apply { relationships.forEach { put(it.toJson()) } })
         .put(KEY_DOCUMENTS, JSONArray().apply { documents.forEach { put(it.toJson()) } })
         .put(KEY_TAGS, JSONArray().apply { tags.forEach { put(it.toJson()) } })
+        .put(KEY_FACTS, JSONArray().apply { facts.forEach { put(it.toJson()) } })
+        .put(KEY_EVENTS, JSONArray().apply { events.forEach { put(it.toJson()) } })
+        .put(KEY_EVENT_ATTENDEES, JSONArray().apply { attendees.forEach { put(it.toJson()) } })
+        .put(KEY_EVENT_PHOTOS, JSONArray().apply { eventPhotos.forEach { put(it.toJson()) } })
 
     fun peopleFrom(json: JSONObject): List<PersonEntity> =
         json.optJSONArray(KEY_PEOPLE).objects().mapNotNull { personFrom(it) }
@@ -63,6 +76,18 @@ object Backup {
 
     fun tagsFrom(json: JSONObject): List<DocumentTagEntity> =
         json.optJSONArray(KEY_TAGS).objects().mapNotNull { tagFrom(it) }
+
+    fun factsFrom(json: JSONObject): List<FactEntity> =
+        json.optJSONArray(KEY_FACTS).objects().mapNotNull { factFrom(it) }
+
+    fun eventsFrom(json: JSONObject): List<EventEntity> =
+        json.optJSONArray(KEY_EVENTS).objects().mapNotNull { eventFrom(it) }
+
+    fun attendeesFrom(json: JSONObject): List<EventAttendeeEntity> =
+        json.optJSONArray(KEY_EVENT_ATTENDEES).objects().mapNotNull { attendeeFrom(it) }
+
+    fun eventPhotosFrom(json: JSONObject): List<EventPhotoEntity> =
+        json.optJSONArray(KEY_EVENT_PHOTOS).objects().mapNotNull { eventPhotoFrom(it) }
 
     /**
      * Writes the zip: the JSON first, then every photo any person refers to and
@@ -78,13 +103,25 @@ object Backup {
         documents: List<DocumentEntity> = emptyList(),
         tags: List<DocumentTagEntity> = emptyList(),
         files: DocumentStore? = null,
+        facts: List<FactEntity> = emptyList(),
+        events: List<EventEntity> = emptyList(),
+        attendees: List<EventAttendeeEntity> = emptyList(),
+        eventPhotos: List<EventPhotoEntity> = emptyList(),
     ) {
         ZipOutputStream(out.buffered()).use { zip ->
             zip.putNextEntry(ZipEntry(JSON_ENTRY))
-            zip.write(toJson(people, relationships, documents, tags).toString(2).toByteArray())
+            zip.write(
+                toJson(people, relationships, documents, tags, facts, events, attendees, eventPhotos)
+                    .toString(2)
+                    .toByteArray(),
+            )
             zip.closeEntry()
 
-            for (name in people.map { it.photo }.filter { it.isNotEmpty() }.distinct()) {
+            // Event photos live in the same PhotoStore root as a person's own
+            // photo, so they share this one zip prefix rather than needing a
+            // second one of their own.
+            val photoNames = people.map { it.photo } + eventPhotos.map { it.fileName }
+            for (name in photoNames.filter { it.isNotEmpty() }.distinct()) {
                 val file = photos.file(name).takeIf { it.isFile } ?: continue
                 zip.putNextEntry(ZipEntry(PHOTOS_ENTRY + name))
                 file.inputStream().use { it.copyTo(zip) }
@@ -137,6 +174,10 @@ object Backup {
             relationships = relationshipsFrom(read),
             documents = documentsFrom(read),
             tags = tagsFrom(read),
+            facts = factsFrom(read),
+            events = eventsFrom(read),
+            attendees = attendeesFrom(read),
+            eventPhotos = eventPhotosFrom(read),
         )
     }
 
@@ -153,6 +194,10 @@ object Backup {
         val relationships: List<RelationshipEntity>,
         val documents: List<DocumentEntity> = emptyList(),
         val tags: List<DocumentTagEntity> = emptyList(),
+        val facts: List<FactEntity> = emptyList(),
+        val events: List<EventEntity> = emptyList(),
+        val attendees: List<EventAttendeeEntity> = emptyList(),
+        val eventPhotos: List<EventPhotoEntity> = emptyList(),
     )
 
     private fun PersonEntity.toJson() = JSONObject()
@@ -165,6 +210,8 @@ object Backup {
         .put("birth", birth.store())
         .put("death", death.store())
         .put("pronouns", pronouns)
+        .put("address", address)
+        .put("occupation", occupation)
         .put("isMe", isMe)
         .put("isFavourite", isFavourite)
         .put("createdAt", createdAt)
@@ -183,6 +230,8 @@ object Backup {
             birth = FuzzyDate.parse(json.optString("birth")),
             death = FuzzyDate.parse(json.optString("death")),
             pronouns = json.optString("pronouns"),
+            address = json.optString("address"),
+            occupation = json.optString("occupation"),
             isMe = json.optBoolean("isMe"),
             isFavourite = json.optBoolean("isFavourite"),
             createdAt = json.optLong("createdAt"),
@@ -273,6 +322,76 @@ object Backup {
         )
     }
 
+    private fun FactEntity.toJson() = JSONObject()
+        .put("id", id)
+        .put("personId", personId)
+        .put("category", category)
+        .put("text", text)
+        .put("createdAt", createdAt)
+
+    private fun factFrom(json: JSONObject): FactEntity? {
+        val id = json.optString("id").ifEmpty { return null }
+        val personId = json.optString("personId").ifEmpty { return null }
+        val category = json.optString("category").ifEmpty { return null }
+        return FactEntity(
+            id = id,
+            personId = personId,
+            category = category,
+            text = json.optString("text"),
+            createdAt = json.optLong("createdAt"),
+        )
+    }
+
+    private fun EventEntity.toJson() = JSONObject()
+        .put("id", id)
+        .put("title", title)
+        .put("date", date.store())
+        .put("location", location)
+        .put("description", description)
+        .put("addedAt", addedAt)
+
+    private fun eventFrom(json: JSONObject): EventEntity? {
+        val id = json.optString("id").ifEmpty { return null }
+        return EventEntity(
+            id = id,
+            title = json.optString("title"),
+            date = FuzzyDate.parse(json.optString("date")),
+            location = json.optString("location"),
+            description = json.optString("description"),
+            addedAt = json.optLong("addedAt"),
+        )
+    }
+
+    private fun EventAttendeeEntity.toJson() = JSONObject()
+        .put("id", id)
+        .put("eventId", eventId)
+        .put("personId", personId)
+
+    private fun attendeeFrom(json: JSONObject): EventAttendeeEntity? {
+        val id = json.optString("id").ifEmpty { return null }
+        val eventId = json.optString("eventId").ifEmpty { return null }
+        val personId = json.optString("personId").ifEmpty { return null }
+        return EventAttendeeEntity(id = id, eventId = eventId, personId = personId)
+    }
+
+    private fun EventPhotoEntity.toJson() = JSONObject()
+        .put("id", id)
+        .put("eventId", eventId)
+        .put("fileName", fileName)
+        .put("addedAt", addedAt)
+
+    private fun eventPhotoFrom(json: JSONObject): EventPhotoEntity? {
+        val id = json.optString("id").ifEmpty { return null }
+        val eventId = json.optString("eventId").ifEmpty { return null }
+        val fileName = json.optString("fileName").ifEmpty { return null }
+        return EventPhotoEntity(
+            id = id,
+            eventId = eventId,
+            fileName = fileName,
+            addedAt = json.optLong("addedAt"),
+        )
+    }
+
     private fun JSONArray?.objects(): List<JSONObject> =
         (0 until (this?.length() ?: 0)).mapNotNull { this?.optJSONObject(it) }
 
@@ -281,6 +400,10 @@ object Backup {
     private const val KEY_TIES = "relationships"
     private const val KEY_DOCUMENTS = "documents"
     private const val KEY_TAGS = "documentTags"
+    private const val KEY_FACTS = "facts"
+    private const val KEY_EVENTS = "events"
+    private const val KEY_EVENT_ATTENDEES = "eventAttendees"
+    private const val KEY_EVENT_PHOTOS = "eventPhotos"
 
     private val DATE = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
 }

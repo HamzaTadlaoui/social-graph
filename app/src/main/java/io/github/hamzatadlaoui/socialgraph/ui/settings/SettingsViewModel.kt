@@ -36,10 +36,15 @@ class SettingsViewModel(
         viewModelScope.launch {
             val (people, relationships) = repository.snapshot()
             val (documents, tags) = repository.documentSnapshot()
+            val facts = repository.factSnapshot()
+            val (events, attendees, eventPhotos) = repository.eventSnapshot()
             val wrote = withContext(Dispatchers.IO) {
                 runCatching {
                     context.contentResolver.openOutputStream(target)?.use { out ->
-                        Backup.write(out, people, relationships, photos, documents, tags, files)
+                        Backup.write(
+                            out, people, relationships, photos, documents, tags, files, facts,
+                            events, attendees, eventPhotos,
+                        )
                     } ?: return@runCatching false
                     true
                 }.getOrDefault(false)
@@ -69,6 +74,10 @@ class SettingsViewModel(
             repository.restore(restored.people, restored.relationships)
             // Documents after people: a tag needs both ends to exist already.
             repository.restoreDocuments(restored.documents, restored.tags)
+            repository.restoreFacts(restored.facts)
+            // Events after people, for the same reason an attendee needs both
+            // ends to exist already.
+            repository.restoreEvents(restored.events, restored.attendees, restored.eventPhotos)
             message = Message(R.string.restore_done, restored.people.size)
         }
     }

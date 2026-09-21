@@ -4,6 +4,7 @@
     <string name="tab_people">People</string>
     <string name="tab_graph">Graph</string>
     <string name="tab_family">Family</string>
+    <string name="tab_events">Events</string>
 
     <string name="search_people">Search people</string>
     <string name="no_one_yet">Nobody here yet.\n\nAdd the first person with the button below.</string>
@@ -25,6 +26,9 @@
     <string name="field_pronouns">Pronouns</string>
     <string name="field_born">Born</string>
     <string name="field_born_hint">1974, 1974-03, 1974-03-12, or c.1974 if you are unsure</string>
+    <string name="field_died">Died</string>
+    <string name="field_address">Address</string>
+    <string name="field_occupation">Occupation</string>
     <string name="field_notes">Notes</string>
     <string name="this_is_me">This is me</string>
     <string name="this_is_me_hint">The graph and the family tree open on you.</string>
@@ -33,11 +37,15 @@
     <string name="delete_person_body">Their relationships go with them. This cannot be undone.</string>
 
     <string name="unknown">Unknown</string>
+    <string name="not_set">Not set</string>
     <string name="born_on">Born %1$s</string>
     <string name="add_relationship">Add relationship</string>
     <string name="remove_relationship">Remove relationship</string>
     <string name="make_official">Make official</string>
     <string name="no_relationships_yet">No relationships recorded yet.</string>
+    <string name="tab_personal_info">Personal info</string>
+    <string name="tab_relationships">Relationships</string>
+    <string name="no_notes_yet">No notes yet.</string>
     <string name="relationship_subject">%1$s…</string>
     <string name="relationship_kind">Relationship</string>
     <string name="relationship_label">What to call it</string>
@@ -51,12 +59,31 @@
     <string name="confirm_parents_partner">Is %1$s also your parent?</string>
     <string name="confirm_sibling">Is %1$s also your sibling?</string>
 
+    <!-- Short categorised facts about a person, and the categories offered up front. -->
+    <string name="facts">Facts</string>
+    <string name="fact_category_personality">Personality</string>
+    <string name="add_fact">Add a fact</string>
+    <string name="fact_hint">Add a fact…</string>
+    <string name="delete_fact">Delete fact</string>
+    <string name="new_category">New category</string>
+    <string name="category_name">Category name</string>
+    <string name="add_category">Add category</string>
+
+    <!-- Choosing a profile photo from what a person is already tagged in. -->
+    <string name="choose_from_tagged_photos">Choose from a tagged photo</string>
+    <string name="pick_a_photo">Choose a photo</string>
+    <string name="not_tagged_in_any_photos">Not tagged in any photos yet.</string>
+
     <!-- Headings on a person's page: the far end of each tie. -->
     <string name="section_parents">Parents</string>
     <string name="section_children">Children</string>
     <string name="section_siblings">Siblings</string>
+    <string name="section_twins">Twin</string>
     <string name="section_partners">Partner</string>
+    <string name="section_spouses">Spouse</string>
+    <string name="section_fiances">Fiancé(e)</string>
     <string name="section_former_partners">Former partners</string>
+    <string name="section_widowed">Widow/widower</string>
     <string name="section_friends">Friends</string>
     <string name="section_colleagues">Colleagues</string>
     <string name="section_employers">Employers</string>
@@ -69,8 +96,12 @@
     <string name="tie_parent_of">is the parent of</string>
     <string name="tie_child_of">is the child of</string>
     <string name="tie_sibling_of">is the sibling of</string>
+    <string name="tie_twin_of">is the twin of</string>
     <string name="tie_partner_of">is the partner of</string>
+    <string name="tie_spouse_of">is married to</string>
+    <string name="tie_fiance_of">is engaged to</string>
     <string name="tie_ex_partner_of">is the former partner of</string>
+    <string name="tie_widowed_of">is the widow/widower of</string>
     <string name="tie_friend_of">is a friend of</string>
     <string name="tie_coworker_of">works with</string>
     <string name="tie_employer_of">employs</string>
@@ -100,6 +131,8 @@
     <string name="filter_social">Friends and neighbours</string>
     <string name="filter_work">Work</string>
     <string name="hops">HOPS %1$d</string>
+    <string name="fewer_hops">Fewer hops</string>
+    <string name="more_hops">More hops</string>
     <string name="open_profile">Open</string>
     <string name="centre_here">Centre here</string>
     <string name="uncentre">Back to your own view</string>
@@ -187,4 +220,24 @@
         <item quantity="one">%1$d person</item>
         <item quantity="other">%1$d people</item>
     </plurals>
+
+    <!-- A real occasion - a date, a place, who was there, photos of it. -->
+    <string name="search_events">Search events</string>
+    <string name="add_event">Add event</string>
+    <string name="field_title">Title</string>
+    <string name="field_location">Location</string>
+    <string name="field_description">Description</string>
+    <string name="field_date">Date</string>
+    <string name="section_attendees">Attendees</string>
+    <string name="section_photos">Photos</string>
+    <string name="add_attendee">Add attendee</string>
+    <string name="create_and_add_attendee">Create “%1$s” and add them</string>
+    <string name="remove_attendee">Remove attendee</string>
+    <string name="add_photo">Add photos</string>
+    <string name="remove_photo">Remove photo</string>
+    <string name="delete_event">Delete event</string>
+    <string name="delete_event_body">Its attendees and photos go with it. This cannot be undone.</string>
+    <string name="no_events_yet">Nothing planned yet.\n\nAdd an event with the button below.</string>
+    <string name="no_events_for_person">Not part of any events yet.</string>
+    <string name="untitled_event">Untitled event</string>
 </resources>

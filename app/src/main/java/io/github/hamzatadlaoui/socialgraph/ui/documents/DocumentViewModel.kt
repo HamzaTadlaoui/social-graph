@@ -1,7 +1,5 @@
 package io.github.hamzatadlaoui.socialgraph.ui.documents
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.hamzatadlaoui.socialgraph.data.DocumentEntity
@@ -20,8 +18,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.UUID
 
 /** One tag, with the person it points at already looked up. */
 data class TaggedPerson(val tag: DocumentTagEntity, val person: PersonEntity)
@@ -190,8 +186,8 @@ class DocumentViewModel(
 
     /**
      * Cuts the tagged region out of the picture and makes it that person's
-     * photograph. This is the one moment a crop is written to disk: the tag
-     * itself stays a rectangle, so re-tagging never leaves a stale copy behind.
+     * photograph, via [PhotoStore.cropFrom] - the same crop a profile's own
+     * "choose from a tagged photo" picker uses.
      */
     fun useAsPhoto(tagged: TaggedPerson, onDone: (Boolean) -> Unit = {}) {
         val document = state.value.document ?: return
@@ -201,26 +197,8 @@ class DocumentViewModel(
         }
         viewModelScope.launch {
             val name = withContext(Dispatchers.IO) {
-                val source = files.file(document.fileName).takeIf { it.isFile }
-                    ?: return@withContext null
-                val full = runCatching { BitmapFactory.decodeFile(source.path) }.getOrNull()
-                    ?: return@withContext null
-                runCatching {
-                    val tag = tagged.tag
-                    val x = (tag.left * full.width).toInt().coerceIn(0, full.width - 1)
-                    val y = (tag.top * full.height).toInt().coerceIn(0, full.height - 1)
-                    val w = ((tag.right - tag.left) * full.width).toInt()
-                        .coerceIn(1, full.width - x)
-                    val h = ((tag.bottom - tag.top) * full.height).toInt()
-                        .coerceIn(1, full.height - y)
-
-                    val crop = Bitmap.createBitmap(full, x, y, w, h)
-                    val fileName = "${UUID.randomUUID()}.jpg"
-                    File(photos.file(fileName).also { it.parentFile?.mkdirs() }.path)
-                        .outputStream()
-                        .use { crop.compress(Bitmap.CompressFormat.JPEG, 90, it) }
-                    fileName
-                }.getOrNull()
+                val source = files.file(document.fileName).takeIf { it.isFile } ?: return@withContext null
+                photos.cropFrom(source, tagged.tag)
             }
             if (name == null) {
                 onDone(false)
