@@ -14,8 +14,12 @@ fun RelationshipType.sectionTitle(): Int = when (this) {
     RelationshipType.PARENT_OF -> R.string.section_children
     RelationshipType.CHILD_OF -> R.string.section_parents
     RelationshipType.SIBLING_OF -> R.string.section_siblings
+    RelationshipType.TWIN_OF -> R.string.section_twins
     RelationshipType.PARTNER_OF -> R.string.section_partners
+    RelationshipType.SPOUSE_OF -> R.string.section_spouses
+    RelationshipType.FIANCE_OF -> R.string.section_fiances
     RelationshipType.EX_PARTNER_OF -> R.string.section_former_partners
+    RelationshipType.WIDOWED_OF -> R.string.section_widowed
     RelationshipType.FRIEND_OF -> R.string.section_friends
     RelationshipType.COWORKER_OF -> R.string.section_colleagues
     RelationshipType.EMPLOYER_OF -> R.string.section_employees
@@ -31,8 +35,12 @@ fun RelationshipType.pickerLabel(): Int = when (this) {
     RelationshipType.PARENT_OF -> R.string.tie_parent_of
     RelationshipType.CHILD_OF -> R.string.tie_child_of
     RelationshipType.SIBLING_OF -> R.string.tie_sibling_of
+    RelationshipType.TWIN_OF -> R.string.tie_twin_of
     RelationshipType.PARTNER_OF -> R.string.tie_partner_of
+    RelationshipType.SPOUSE_OF -> R.string.tie_spouse_of
+    RelationshipType.FIANCE_OF -> R.string.tie_fiance_of
     RelationshipType.EX_PARTNER_OF -> R.string.tie_ex_partner_of
+    RelationshipType.WIDOWED_OF -> R.string.tie_widowed_of
     RelationshipType.FRIEND_OF -> R.string.tie_friend_of
     RelationshipType.COWORKER_OF -> R.string.tie_coworker_of
     RelationshipType.EMPLOYER_OF -> R.string.tie_employer_of
@@ -48,10 +56,14 @@ fun RelationshipType.pickerLabel(): Int = when (this) {
  */
 val relationshipSectionOrder: List<RelationshipType> = listOf(
     RelationshipType.CHILD_OF,
+    RelationshipType.SPOUSE_OF,
     RelationshipType.PARTNER_OF,
+    RelationshipType.FIANCE_OF,
     RelationshipType.PARENT_OF,
     RelationshipType.SIBLING_OF,
+    RelationshipType.TWIN_OF,
     RelationshipType.EX_PARTNER_OF,
+    RelationshipType.WIDOWED_OF,
     RelationshipType.FRIEND_OF,
     RelationshipType.COWORKER_OF,
     RelationshipType.EMPLOYER_OF,

@@ -8,6 +8,9 @@ import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.FRIEND_OF
 import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.PARENT_OF
 import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.PARTNER_OF
 import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.SIBLING_OF
+import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.SPOUSE_OF
+import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.TWIN_OF
+import io.github.hamzatadlaoui.socialgraph.model.RelationshipType.WIDOWED_OF
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -88,6 +91,29 @@ class FamilyTreeTest {
         val row = tree.places.filter { it.generation == -2 }.sortedBy { it.column }
 
         assertEquals(listOf("robert", "anne"), row.map { it.id })
+    }
+
+    @Test
+    fun `a married or widowed couple is drawn beside each other, the same as any other partners`() {
+        val married = PeopleGraph(tie("robert", "anne", SPOUSE_OF) + tie("robert", "david", PARENT_OF))
+        val widowed = PeopleGraph(tie("robert", "anne", WIDOWED_OF) + tie("robert", "david", PARENT_OF))
+
+        assertTrue(familyTree(married, "david").couples.contains("anne" to "robert"))
+        assertTrue(familyTree(widowed, "david").couples.contains("anne" to "robert"))
+    }
+
+    @Test
+    fun `twins sit on the same row, the same as any other siblings`() {
+        val twins = PeopleGraph(
+            tie("robert", "david", PARENT_OF) +
+                tie("robert", "claire", PARENT_OF) +
+                tie("david", "claire", TWIN_OF),
+        )
+
+        assertEquals(
+            familyTree(twins, "robert").places.first { it.id == "david" }.generation,
+            familyTree(twins, "robert").places.first { it.id == "claire" }.generation,
+        )
     }
 
     @Test

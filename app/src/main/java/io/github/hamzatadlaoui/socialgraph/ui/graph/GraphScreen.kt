@@ -14,12 +14,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -150,17 +151,36 @@ fun GraphScreen(
             // Scrollable: the labels are short, but a large font scale or a long
             // translation should push the row sideways rather than crush a chip.
             Row(
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 4.dp),
             ) {
-                listOf(1, 2, 3).forEach { hops ->
-                    FilterChip(
-                        selected = viewModel.depth == hops,
-                        onClick = { viewModel.onDepthChange(hops) },
-                        label = { Text(stringResource(R.string.hops, hops)) },
-                    )
+                // A stepper rather than a row of fixed choices, so the depth is
+                // one dial rather than a fixed set of tabs that would need a
+                // new one adding every time a wider reach turned out to be
+                // worth showing - the same reasoning the family tree's own
+                // generations dial already follows.
+                IconButton(
+                    onClick = {
+                        viewModel.onDepthChange((viewModel.depth - 1).coerceAtLeast(MIN_HOPS))
+                    },
+                    enabled = viewModel.depth > MIN_HOPS,
+                ) {
+                    Icon(Icons.Default.Remove, stringResource(R.string.fewer_hops))
+                }
+                Text(
+                    text = stringResource(R.string.hops, viewModel.depth),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                IconButton(
+                    onClick = {
+                        viewModel.onDepthChange((viewModel.depth + 1).coerceAtMost(MAX_HOPS))
+                    },
+                    enabled = viewModel.depth < MAX_HOPS,
+                ) {
+                    Icon(Icons.Default.Add, stringResource(R.string.more_hops))
                 }
             }
 
@@ -321,6 +341,9 @@ fun GraphScreen(
 /** Big enough for a face to be a face, small enough that a network still reads as one. */
 private val NODE = 44.dp
 private val ROOT_NODE = 56.dp
+
+private const val MIN_HOPS = 1
+private const val MAX_HOPS = 6
 
 /**
  * How much further apart two rings sit than a plain "fit the outermost ring

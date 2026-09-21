@@ -8,8 +8,12 @@ enum class RelationshipType {
     PARENT_OF,
     CHILD_OF,
     SIBLING_OF,
+    TWIN_OF,
     PARTNER_OF,
+    SPOUSE_OF,
+    FIANCE_OF,
     EX_PARTNER_OF,
+    WIDOWED_OF,
     FRIEND_OF,
     COWORKER_OF,
     EMPLOYER_OF,
@@ -31,8 +35,8 @@ enum class RelationshipType {
             EMPLOYEE_OF -> EMPLOYER_OF
             // The rest read the same from either end: if I am your sibling,
             // you are mine.
-            SIBLING_OF, PARTNER_OF, EX_PARTNER_OF, FRIEND_OF,
-            COWORKER_OF, NEIGHBOUR_OF, KNOWS, CUSTOM,
+            SIBLING_OF, TWIN_OF, PARTNER_OF, SPOUSE_OF, FIANCE_OF, EX_PARTNER_OF,
+            WIDOWED_OF, FRIEND_OF, COWORKER_OF, NEIGHBOUR_OF, KNOWS, CUSTOM,
             -> this
         }
 
@@ -41,8 +45,9 @@ enum class RelationshipType {
 
     /** The ties the family tree is built out of; the graph view uses them all. */
     val isFamily: Boolean
-        get() = this == PARENT_OF || this == CHILD_OF || this == SIBLING_OF ||
-            this == PARTNER_OF || this == EX_PARTNER_OF
+        get() = this == PARENT_OF || this == CHILD_OF || this == SIBLING_OF || this == TWIN_OF ||
+            this == PARTNER_OF || this == SPOUSE_OF || this == FIANCE_OF ||
+            this == EX_PARTNER_OF || this == WIDOWED_OF
 
     /**
      * How much of a "hops" budget one tie of this kind spends when the graph
@@ -54,8 +59,8 @@ enum class RelationshipType {
      */
     val closeness: Double
         get() = when (this) {
-            PARENT_OF, CHILD_OF, SIBLING_OF, PARTNER_OF -> 1.0
-            EX_PARTNER_OF, CUSTOM -> 1.5
+            PARENT_OF, CHILD_OF, SIBLING_OF, TWIN_OF, PARTNER_OF, SPOUSE_OF, FIANCE_OF -> 1.0
+            EX_PARTNER_OF, WIDOWED_OF, CUSTOM -> 1.5
             FRIEND_OF, KNOWS, COWORKER_OF, EMPLOYER_OF, EMPLOYEE_OF, NEIGHBOUR_OF -> 2.0
         }
 

@@ -45,8 +45,12 @@ fun familyTree(graph: PeopleGraph, rootId: String, up: Int = 2, down: Int = 2): 
                 RelationshipType.PARENT_OF -> 1
                 RelationshipType.CHILD_OF -> -1
                 RelationshipType.SIBLING_OF,
+                RelationshipType.TWIN_OF,
                 RelationshipType.PARTNER_OF,
+                RelationshipType.SPOUSE_OF,
+                RelationshipType.FIANCE_OF,
                 RelationshipType.EX_PARTNER_OF,
+                RelationshipType.WIDOWED_OF,
                 -> 0
                 else -> continue
             }
@@ -70,12 +74,11 @@ fun familyTree(graph: PeopleGraph, rootId: String, up: Int = 2, down: Int = 2): 
     for (personId in inTree) {
         for (edge in graph.neighbours(personId)) {
             if (edge.toId !in inTree) continue
-            when (edge.type) {
-                RelationshipType.PARTNER_OF, RelationshipType.EX_PARTNER_OF ->
+            when {
+                isCoupleTie(edge.type) ->
                     // One line per couple, whichever way round it was entered.
                     couples += listOf(edge.fromId, edge.toId).sorted().let { it[0] to it[1] }
-                RelationshipType.PARENT_OF -> descents += edge.fromId to edge.toId
-                else -> Unit
+                edge.type == RelationshipType.PARENT_OF -> descents += edge.fromId to edge.toId
             }
         }
     }
@@ -181,10 +184,7 @@ private fun unitsIn(ids: List<String>, graph: PeopleGraph): List<List<String>> {
     while (remaining.isNotEmpty()) {
         val personId = remaining.removeAt(0)
         val partner = graph.neighbours(personId)
-            .firstOrNull {
-                (it.type == RelationshipType.PARTNER_OF || it.type == RelationshipType.EX_PARTNER_OF) &&
-                    it.toId in remaining
-            }
+            .firstOrNull { isCoupleTie(it.type) && it.toId in remaining }
             ?.toId
 
         if (partner == null) {
@@ -216,6 +216,14 @@ private fun spread(ids: List<String>, column: MutableMap<String, Float>) {
 /** One clear column between one family and the next. */
 private const val SPACING = 1.6f
 
+/** Any flavour of partnership - current, past or ended by death - draws as a couple. */
+private fun isCoupleTie(type: RelationshipType): Boolean = when (type) {
+    RelationshipType.PARTNER_OF, RelationshipType.SPOUSE_OF, RelationshipType.FIANCE_OF,
+    RelationshipType.EX_PARTNER_OF, RelationshipType.WIDOWED_OF,
+    -> true
+    else -> false
+}
+
 /** Keeps couples next to each other, so the line between them is a short one. */
 private fun partnersTogether(ids: List<String>, graph: PeopleGraph): List<String> {
     val remaining = ids.toMutableList()
@@ -226,10 +234,7 @@ private fun partnersTogether(ids: List<String>, graph: PeopleGraph): List<String
         ordered += personId
 
         val partner = graph.neighbours(personId)
-            .firstOrNull {
-                (it.type == RelationshipType.PARTNER_OF || it.type == RelationshipType.EX_PARTNER_OF) &&
-                    it.toId in remaining
-            }
+            .firstOrNull { isCoupleTie(it.type) && it.toId in remaining }
             ?.toId
 
         if (partner != null) {

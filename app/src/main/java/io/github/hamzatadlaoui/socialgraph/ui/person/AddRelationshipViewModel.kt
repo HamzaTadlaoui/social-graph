@@ -23,6 +23,13 @@ import kotlinx.coroutines.launch
 enum class FollowUpKind { CHILD_OF_PARTNER, PARTNER_PARENT_OF, PARENT_OF_SIBLING }
 
 /**
+ * A partnership still going, in whatever flavour it was recorded - the follow-up
+ * prompts care that someone is a current partner, not which word was used for it.
+ */
+private val CURRENT_PARTNER_TYPES =
+    setOf(RelationshipType.PARTNER_OF, RelationshipType.SPOUSE_OF, RelationshipType.FIANCE_OF)
+
+/**
  * A question worth asking right after a tie is recorded, because the tie
  * just added makes another one likely. Answering yes records that one too;
  * answering no simply moves on - nothing is inferred without being asked.
@@ -118,14 +125,14 @@ class AddRelationshipViewModel(
         val subjectTies = repository.relationshipsOf(personId).first()
         val newPersonTies = repository.relationshipsOf(newPersonId).first()
 
-        fun candidates(subjectType: RelationshipType, alreadyType: RelationshipType) =
-            subjectTies.filter { it.type == subjectType }
+        fun candidates(subjectTypes: Set<RelationshipType>, alreadyType: RelationshipType) =
+            subjectTies.filter { it.type in subjectTypes }
                 .map { it.toId }
                 .distinct()
                 .filterNot { id -> newPersonTies.any { it.type == alreadyType && it.toId == id } }
 
         return when (type) {
-            RelationshipType.PARENT_OF -> candidates(RelationshipType.PARTNER_OF, RelationshipType.CHILD_OF)
+            RelationshipType.PARENT_OF -> candidates(CURRENT_PARTNER_TYPES, RelationshipType.CHILD_OF)
                 .mapNotNull { partnerId ->
                     val partner = repository.find(partnerId) ?: return@mapNotNull null
                     FollowUpPrompt(
@@ -136,7 +143,8 @@ class AddRelationshipViewModel(
                         toId = newPersonId,
                     )
                 }
-            RelationshipType.PARTNER_OF -> candidates(RelationshipType.PARENT_OF, RelationshipType.PARENT_OF)
+            RelationshipType.PARTNER_OF, RelationshipType.SPOUSE_OF, RelationshipType.FIANCE_OF ->
+                candidates(setOf(RelationshipType.PARENT_OF), RelationshipType.PARENT_OF)
                 .mapNotNull { childId ->
                     val child = repository.find(childId) ?: return@mapNotNull null
                     FollowUpPrompt(
@@ -147,7 +155,8 @@ class AddRelationshipViewModel(
                         toId = childId,
                     )
                 }
-            RelationshipType.SIBLING_OF -> candidates(RelationshipType.CHILD_OF, RelationshipType.CHILD_OF)
+            RelationshipType.SIBLING_OF, RelationshipType.TWIN_OF ->
+                candidates(setOf(RelationshipType.CHILD_OF), RelationshipType.CHILD_OF)
                 .mapNotNull { parentId ->
                     val parent = repository.find(parentId) ?: return@mapNotNull null
                     FollowUpPrompt(

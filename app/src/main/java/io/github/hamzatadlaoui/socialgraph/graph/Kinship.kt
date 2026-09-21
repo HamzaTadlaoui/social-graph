@@ -188,14 +188,25 @@ fun impliedKin(graph: PeopleGraph, personId: String): List<Implied> {
 private fun PeopleGraph.related(personId: String, type: RelationshipType): List<String> =
     neighbours(personId).filter { it.type == type }.map { it.toId }.distinct()
 
+private fun PeopleGraph.related(personId: String, types: Set<RelationshipType>): List<String> =
+    neighbours(personId).filter { it.type in types }.map { it.toId }.distinct()
+
 internal fun PeopleGraph.parentsOf(personId: String) = related(personId, RelationshipType.CHILD_OF)
 
 internal fun PeopleGraph.childrenOf(personId: String) = related(personId, RelationshipType.PARENT_OF)
 
-internal fun PeopleGraph.siblingsOf(personId: String) = related(personId, RelationshipType.SIBLING_OF)
+/** A twin is a sibling too - the tie is more specific, not a different kind of thing. */
+internal fun PeopleGraph.siblingsOf(personId: String) =
+    related(personId, setOf(RelationshipType.SIBLING_OF, RelationshipType.TWIN_OF))
 
+/**
+ * Current partners for in-law purposes: a spouse's family is family, and
+ * still is once they are widowed - grief does not undo a marriage. An
+ * ex-partner's family never counted, and an engagement is not a marriage
+ * yet, so neither extends this far.
+ */
 internal fun PeopleGraph.partnersOf(personId: String) =
-    related(personId, RelationshipType.PARTNER_OF)
+    related(personId, setOf(RelationshipType.PARTNER_OF, RelationshipType.SPOUSE_OF, RelationshipType.WIDOWED_OF))
 
 /** Recorded siblings, plus anyone sharing a parent with them. */
 internal fun PeopleGraph.siblingLike(personId: String): List<String> =
